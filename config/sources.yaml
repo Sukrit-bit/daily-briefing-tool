@@ -1,0 +1,103 @@
+# Daily Briefing Tool — Source Configuration
+# 
+# To add a new source:
+# 1. Add an entry below with unique id
+# 2. Set fetch_since to when you want to start pulling content
+# 3. Run: python -m src.cli fetch --source {id}
+
+sources:
+  # ============================================
+  # YOUTUBE CHANNELS
+  # ============================================
+  
+  - id: nate-b-jones
+    name: "Nate B Jones (AI News & Strategy Daily)"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@NateBJones"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Daily AI news and strategy. High frequency, shorter videos."
+    primary_domains:
+      - ai
+    
+  - id: greg-isenberg
+    name: "Greg Isenberg"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@GregIsenberg"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Startup ideas, building in public. 2-3x per week."
+    primary_domains:
+      - startups
+      - strategy
+    
+  - id: y-combinator
+    name: "Y Combinator"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@ycombinator"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Startup advice, founder interviews. Evergreen content."
+    primary_domains:
+      - startups
+    
+  - id: dwarkesh-patel
+    name: "Dwarkesh Patel"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@DwarkeshPatel"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Deep technical interviews. Long-form (1-3 hours). Often dense AI/tech content."
+    primary_domains:
+      - ai
+      - strategy
+    
+  - id: lennys-podcast
+    name: "Lenny's Podcast"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@LennysPodcast"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Product and startup advice. 1-1.5 hour episodes, 1-2x per week."
+    primary_domains:
+      - startups
+      - strategy
+    
+  - id: 20vc
+    name: "20VC with Harry Stebbings"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@20VC"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "VC and founder interviews. Daily episodes, 30-60 min."
+    primary_domains:
+      - startups
+      - finance
+    
+  - id: bg2-pod
+    name: "BG2 Pod"
+    type: youtube_channel
+    channel_url: "https://www.youtube.com/@Bg2Pod"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Bill Gurley + Brad Gerstner. Weekly, 1-2 hours. Finance/AI/Strategy."
+    primary_domains:
+      - finance
+      - ai
+      - strategy
+
+  # ============================================
+  # BLOGS / RSS
+  # ============================================
+  
+  - id: stratechery
+    name: "Stratechery (Ben Thompson)"
+    type: rss
+    feed_url: "https://stratechery.com/feed/"
+    fetch_since: "2025-01-01"
+    active: true
+    notes: "Free articles only. 2-3x per week. Dense strategy/tech analysis."
+    primary_domains:
+      - strategy
+      - ai
+    paywall_handling: "free_only"

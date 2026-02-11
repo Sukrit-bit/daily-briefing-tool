@@ -1,0 +1,37 @@
+# Daily Briefing Tool - Dependencies
+
+# Core
+python-dotenv>=1.0.0          # Environment variable loading
+pyyaml>=6.0                   # YAML config parsing
+click>=8.1.0                  # CLI framework
+
+# Content Fetching
+youtube-transcript-api>=0.6.0  # YouTube transcript extraction
+yt-dlp>=2024.0.0              # YouTube metadata (backup)
+feedparser>=6.0.0             # RSS feed parsing
+requests>=2.31.0              # HTTP requests
+beautifulsoup4>=4.12.0        # HTML parsing (for Stratechery)
+
+# LLM
+google-genai>=1.0.0           # Gemini API (google.genai SDK)
+openai>=1.0.0                 # OpenAI API (fallback provider)
+
+# Database
+# SQLite is built into Python, no package needed
+
+# Email
+resend>=2.0.0                 # Email delivery
+
+# Web UI
+fastapi>=0.109.0              # Web framework
+uvicorn>=0.27.0               # ASGI server
+jinja2>=3.1.0                 # HTML templating
+python-multipart>=0.0.6       # Form handling
+
+# Utilities
+python-dateutil>=2.8.0        # Date parsing
+pytz>=2024.1                  # Timezone handling
+
+# Development
+pytest>=8.0.0                 # Testing
+httpx>=0.26.0                 # Async HTTP (for testing FastAPI)
