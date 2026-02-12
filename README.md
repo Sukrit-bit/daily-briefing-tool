@@ -6,18 +6,21 @@ I follow 8 sources across AI, startups, strategy, and finance — from 3-hour Dw
 
 This was built entirely using [Claude Code](https://claude.ai/claude-code) over 8 iterative sessions. I'm a product manager, not a software engineer. The code was written by Claude; the product decisions, prompt engineering, and system design were mine.
 
-<p align="center">
-  <img src="docs/briefing-screenshot.png" alt="Daily briefing email showing headline index with tier indicators and detail cards" width="500">
-</p>
-
 ## What It Actually Does
 
-Every morning, I get an email like this:
+Every morning, I get an email with two layers:
 
-- **Headline index** — 12-18 items, each with a tier indicator (deep dive / worth a look / summary sufficient), source, length, and topic tags. I scan this in 30 seconds.
-- **Editorial intro** — A 1-2 sentence LLM-generated synthesis tying the day's themes together.
-- **Detail cards** — Summaries, key insights, and opinionated "so what" takes, tiered by how much value the original adds beyond the summary.
-- **Backlog progress** — The system mixes fresh content with my historical backlog, clearing it over time.
+**Layer 1 — Headline Index (30-second scan).** Tier indicators, titles, sources, lengths, and topic tags. I scan this over coffee and already know what kind of day it is.
+
+<p align="center">
+  <img src="docs/briefing-headline-index.png" alt="Briefing headline index showing 12 items with tier emojis, topic tags, and editorial intro" width="550">
+</p>
+
+**Layer 2 — Detail Cards (5-minute read).** Summaries, key insights, and opinionated "so what" takes — tiered by how much value the original adds beyond the summary.
+
+<p align="center">
+  <img src="docs/briefing-detail-cards.png" alt="Detail cards showing deep dive summaries with insights, so-what boxes, and watch links" width="550">
+</p>
 
 The tier system is the core product decision: not everything deserves the same attention. A **Deep Dive** means "the summary only captures half the value — go watch/read the original." A **Summary Sufficient** means "you've got the gist, move on." This saves me hours per week.
 
