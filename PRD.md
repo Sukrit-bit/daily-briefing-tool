@@ -1,379 +1,141 @@
-# Daily Briefing Tool — Product Requirements Document
+# Daily Briefing Tool — Product Design Document
 
-**Version:** 2.0 (updated to reflect what was built)
-**Created:** February 2025
+## The Problem
 
----
+I'm a former Director of Product, now building an AI startup. I follow 8 high-signal sources across AI, startups, strategy, and finance. The problem is simple and brutal: Dwarkesh Patel drops a 3-hour interview with a compute researcher. Lenny's Podcast publishes an hour-long conversation with a four-time founder. Ben Thompson writes 3,000 words on chip supply chains. 20VC puts out a new episode *every day*. BG2 Pod covers $285B market cap crashes in real-time.
 
-## 1. Problem
+I trust all of these sources. I can't consume any of them fast enough. I had a 6-month backlog and 5 minutes each morning.
 
-I'm drowning in valuable content across AI, startups, strategy, and finance. Eight sources I trust publish daily. Some drop 3-hour interviews. Some drop 700-word newsletters. I have 6-12 months of backlog and maybe 5 minutes each morning to figure out what matters.
+The real problem isn't information overload — it's the inability to triage. I don't need to read everything. I need to know *which things I can skip* and *which things I can't*.
 
-I need a system that:
-1. Fetches everything automatically from my 8 sources
-2. Reads it all for me (transcripts, articles, the lot)
-3. Decides what's worth my time and what isn't
-4. Delivers a daily briefing I can scan in 5 minutes and deep-dive when I choose
-5. Clears my backlog over 2-3 months without overwhelming me
+## The Core Insight
 
-## 2. Solution
+Most content summarization tools treat everything equally. "Here's a summary." But a summary of a 3-hour Dwarkesh Patel interview with 40,000 words of transcript captures maybe 30% of the value. A summary of a 5-minute AI news clip captures 95%. Treating these the same is a product design failure.
 
-A CLI pipeline that fetches content, processes it through LLMs, composes tier-based daily briefings, and delivers them via email.
+The system needed a **tier system** that answers one question: *"How much of the original value does my summary actually capture?"*
+
+| Tier | What it means | What I do |
+|------|--------------|-----------|
+| **Deep Dive** | Summary captures <50%. The original has depth, nuance, and structure you'd miss. | Block 20 minutes and watch/read the original. |
+| **Worth a Look** | Summary captures 60-80%. Solid content, well-summarized. | Skim the insights. Maybe click through if a tag catches my eye. |
+| **Summary Sufficient** | Summary captures 90%+. You've got the gist. | Read the two-sentence summary and move on. |
+
+This single decision — tiers instead of scores — shaped the entire product.
+
+## Key Decisions and Why
+
+### "Don't trust the LLM's tier assignment"
+
+LLMs are conflict-averse. Ask them to tier content and they'll rate almost everything "worth a look." It's the equivalent of a restaurant where every review is 4 stars.
+
+So I built a **calibration layer** that overrides the LLM based on objective signals:
+
+- **18,000+ words?** That's a 3-hour interview. Auto-promote to deep dive, regardless of what the LLM said.
+- **12,000+ words from Dwarkesh, Lenny's, or Stratechery?** These sources have consistently high density. Auto-promote.
+- **Under 1,500 words?** The summary *is* the content. Auto-demote to summary sufficient.
+- **Stale content rated deep dive?** Demote. A great interview from 6 weeks ago isn't worth prioritizing over today's news.
+
+This hybrid approach — LLM judgment plus signal-based overrides — produces a tier distribution that actually feels right: ~30% deep dive, ~58% worth a look, ~12% summary sufficient.
+
+### "LLMs will sound like LLMs unless you fight it"
+
+The first version of the summaries was unusable. Every other sentence was "a game-changer in the landscape of AI." The insights all started with "This highlights the importance of..."
+
+I addressed this at three levels:
+
+**Voice definition.** The prompt specifies a persona: sharp analyst, Matt Levine / Ben Thompson style. Opinionated, occasionally funny. Avoids corporate-speak.
+
+**Variety enforcement.** The prompt mandates 6 different opener styles (lead with a number, a contrast, a bold claim, a quote, a one-word reaction, a question) and 6 different "so what" styles (imperative, market signal, contrarian take, investment angle, time-sensitive, strategic implication). This breaks the monotony.
+
+**Blacklist enforcement.** LLMs ignore prompt-level bans about 20% of the time. So every summary goes through a post-processing regex layer that catches and replaces 12 banned phrases. "Game-changer" becomes something specific. "The landscape" becomes something concrete. Two layers, zero tolerance.
+
+### "Fixed categories are useless. Dynamic tags are useful."
+
+Early versions tagged everything with generic buckets: "AI," "Finance," "Startups," "Strategy." Every item got 2-3 of these. They added zero information.
+
+I switched to dynamic topic tags: the LLM generates specific, concrete tags per item. A briefing now shows tags like "vibe-coding," "GPU-capex," "MSFT," "churn-metrics," "founder-mode." I can scan the headline index and know in one glance which items are relevant to what I'm thinking about today.
+
+### "A prolific source shouldn't monopolize the briefing"
+
+20VC publishes daily. Without constraints, it would take 4-5 slots in every briefing. The composition algorithm enforces source diversity: max 2 items per source, with an exception for a 3rd if it's rated deep dive. This forces variety and surfaces content from less frequent but high-quality sources like Dwarkesh Patel or BG2 Pod.
+
+### "The backlog should clear itself"
+
+With 900+ items to process and only 15 per briefing, the system needed a strategy for the backlog. The answer: **dynamic allocation** based on how much fresh content arrives each day.
+
+- Light day (0-3 fresh items): pull 8 from backlog
+- Normal day (4-6 fresh): pull 5 from backlog
+- Heavy day (7-9 fresh): pull 3 from backlog
+- Very heavy day (10+ fresh): pull 2 from backlog
+
+Backlog items are filtered to evergreen content only — stale news doesn't get a second chance. Over weeks, the backlog steadily clears without ever making the daily briefing feel like homework.
+
+## The Email
+
+The briefing email is the product's only interface. It needs to work in a 5-10 minute morning scan.
+
+**Subject line:** `Feb 12: Marc Andreessen: The real AI boom hasn't... (+11 more)` — Optimized for Outlook mobile's ~75 character preview. Leads with the most important item.
+
+**Layer 1 — Headline Index (30-second scan).** A compact table: tier emoji, title (truncated to 70 chars), source, length, relative date, and topic tag pills. I scan this over coffee and already know what kind of day it is. Between the index and the detail cards: an editorial intro — a 1-2 sentence LLM-generated synthesis of the day's themes.
+
+**Layer 2 — Detail Cards (5-minute read).** Each tier renders differently. Deep dives get a 3-sentence summary, 3 key insights, a "so what" opinion box, and a Watch/Read link with duration. Summary sufficient items get two sentences and an inline take — no link, because the summary *is* the value.
+
+## Architecture
+
+The system is a four-stage pipeline:
 
 ```
 fetch → process → compose → send-briefing
-  │         │          │          │
-  │         │          │          └── HTML email via Resend + LLM editorial intro
-  │         │          └── Source diversity, deep dive caps, priority ordering
-  │         └── LLM summarization → blacklist enforcement → tier calibration
-  └── YouTube Data API v3 / RSS → transcripts → SQLite
 ```
 
-No web framework. No hosted infra. Just a local Python CLI, a SQLite database, and two LLM providers.
+**Fetch.** YouTube Data API v3 discovers videos (full channel history, not just recent RSS). Transcripts are extracted via youtube-transcript-api. RSS feeds are parsed with feedparser. yt-dlp provides video duration metadata. YouTube Shorts (<2 min) are filtered at three layers: URL pattern, API duration, post-enrichment. Everything goes into SQLite.
 
----
+**Process.** Each item goes through: prompt construction (v5.0) → LLM call → JSON response parsing → blacklist enforcement → tier calibration. Gemini 2.5 Flash is primary (1M token context window). OpenAI GPT-4o is the automatic fallback — when Gemini rate-limits, the system detects it, switches providers mid-batch, and keeps going.
 
-## 3. Key Decisions
+**Compose.** Selects ~15 items (18 hard cap) from the undelivered pool. Applies source diversity caps, deep dive ceiling (max 3 per briefing), priority ordering, and source interleaving within tiers to prevent back-to-back items from the same source.
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Primary LLM | Gemini 2.5 Flash (`google.genai` SDK) | 1M token context, good quality, GCP credits available |
-| Fallback LLM | OpenAI GPT-4o | Automatic failover when Gemini rate-limits |
-| Transcripts | youtube-transcript-api | Free, no API quota, sufficient quality |
-| Video discovery | YouTube Data API v3 | Full channel history (RSS only returns ~15 recent videos) |
-| Email | Resend | Free tier (3K/month), simple API, real inbox delivery |
-| Database | SQLite | No server, no config, local-first |
-| Configuration | YAML sources + hardcoded constants | Simple. Not over-engineered for one user. |
-| Content mix | 50-70% fresh / 30-50% backlog | Dynamic: light days pull more backlog |
-| Daily volume | 15 target, 18 hard cap | Overflow defers to next day |
-| Shorts filter | <2 min videos excluded | 3-layer filter: URL pattern, API duration, post-enrichment |
+**Send.** Generates an editorial intro (separate LLM call), renders a two-layer HTML email, sends via Resend, marks items as delivered, saves an HTML backup.
 
----
+### Bulk Processing
 
-## 4. Sources
+The initial backlog was 868 items. Processing sequentially with `--delay 5` would take over an hour. So I built a concurrent processing script using asyncio with dual-provider support:
 
-Eight curated sources, all fetching since January 2025:
+- Splits items between Gemini (70%) and OpenAI (30%)
+- Configurable concurrency (default: 5 Gemini, 3 OpenAI)
+- Single asyncio.Queue consumer for thread-safe database writes
 
-| Source | Type | Focus | Cadence |
-|--------|------|-------|---------|
-| Nate B Jones | YouTube | AI news & strategy | Daily, shorter |
-| Greg Isenberg | YouTube | Startup ideas, building in public | 2-3x/week |
-| Y Combinator | YouTube | Startup advice, founder interviews | Irregular |
-| Dwarkesh Patel | YouTube | Deep technical interviews | Long-form (1-3h) |
-| Lenny's Podcast | YouTube | Product, startups, strategy | 1-2x/week |
-| 20VC (Harry Stebbings) | YouTube | VC/founder interviews | Daily, 30-60m |
-| BG2 Pod | YouTube | Finance, AI, strategy | Weekly, 1-2h |
-| Stratechery | RSS | Strategy, tech analysis | 2-3x/week (free articles only) |
+What I learned about API rate limits in practice:
+- Gemini at 5 concurrent: 0 failures. At 20 concurrent: frequent 429s.
+- OpenAI at 3 concurrent: still sees occasional 429s. Their limits are stricter than documented.
+- 868 items took ~30 minutes at conservative concurrency. My initial estimate was 3-5 minutes. I was off by 6-10x.
 
-Sources are defined in `config/sources.yaml`. Adding a new one is a YAML edit + a `fetch` command.
-
----
-
-## 5. Architecture
-
-### Data Flow
-
-1. **Fetch** — YouTube Data API v3 discovers videos (full channel history), youtube-transcript-api extracts transcripts, feedparser handles RSS. yt-dlp provides duration metadata as a fallback. Items are stored in SQLite as `ContentItem` with status `pending`.
-
-2. **Process** — Each item goes through: prompt construction (v5.0) → LLM call (Gemini, OpenAI fallback) → JSON response parsing → blacklist enforcement → tier calibration → save as `ProcessedContent`.
-
-3. **Compose** — The composer selects items from the undelivered pool: fresh content first, then backlog (evergreen only). Applies source diversity caps (max 2-3 per source), deep dive ceiling (max 3), priority ordering (deep dive → worth a look → summary sufficient), source interleaving within tiers.
-
-4. **Send** — Generates an editorial intro (separate LLM call), composes a two-layer HTML email, sends via Resend, marks items as delivered, saves HTML backup to `data/`.
-
-### LLM Processing Pipeline
-
-```
-ContentItem
-    │
-    ├── Skip if: no transcript, paywall detected, <500 words
-    │
-    ▼
-build_summarization_prompt()  ← Prompt v5.0 with voice, blacklist, variety rules
-    │
-    ▼
-LLMClient.generate()  ← Gemini primary, auto-fallback to OpenAI
-    │
-    ▼
-_parse_response()  ← Extract JSON, validate fields
-    │
-    ▼
-_enforce_blacklist()  ← Regex replacement of 12 banned phrases + entity corrections
-    │
-    ▼
-_calibrate_tier()  ← Signal-based overrides (word count, source, content type)
-    │
-    ▼
-ProcessedContent → SQLite
-```
-
-### Tier Calibration
-
-LLMs tend to default everything to `worth_a_look`. The calibration layer applies signal-based overrides:
-
-| Rule | Trigger | Action |
-|------|---------|--------|
-| Long-form auto-promote | 18K+ words | → deep_dive regardless of source |
-| Deep source promote | 12K+ words from Dwarkesh/Lenny's/Stratechery | → deep_dive |
-| Interview promote | 12K+ words + interview type | → deep_dive |
-| Insight density promote | 12K+ words + 5+ insights | → deep_dive |
-| Short content demote | 1,500 words or less | → summary_sufficient |
-| Stale content demote | Stale + deep_dive | → worth_a_look |
-
-### Blacklist Enforcement
-
-LLMs ignore prompt-level blacklists about 20% of the time. The system uses two layers:
-
-- **Layer 1 (prompt):** Instructions in the prompt text tell the LLM to avoid specific phrases
-- **Layer 2 (post-processing):** `_enforce_blacklist()` uses case-insensitive regex to catch and replace anything that slips through
-
-Currently banned: "game-changer", "non-negotiable", "the message is clear", "leveraging AI", "paradigm shift", "the landscape", and 6 others.
-
----
-
-## 6. Prompt Design (v5.0)
-
-The prompt defines a specific voice: sharp analyst, Matt Levine / Ben Thompson style, opinionated, occasionally funny, never sounds like a press release.
-
-**Structural constraints:**
-- `core_summary`: 2-3 sentences maximum. Lead with the most surprising claim.
-- `key_insights`: 3-5 bullets, each one sentence, max 25 words.
-- `concepts_explained`: Only genuinely novel terms. Max 3, with analogies.
-- `so_what`: 1-2 sentences. Specific and opinionated.
-- `topic_tags`: 2-3 dynamic tags. Concrete (e.g., "vibe-coding", "GPU-capex", "MSFT"), not generic ("ai", "strategy").
-
-**Variety enforcement:**
-The prompt mandates 6 different opener styles (number, contrast, bold claim, quote, one-word reaction, question) and 6 different so_what styles (imperative, market signal, contrarian take, investment angle, time-sensitive, strategic implication). This prevents the monotonous "X is transforming Y" pattern that makes LLM-generated content immediately recognizable.
-
-**JSON response format:**
-```json
-{
-  "core_summary": "...",
-  "key_insights": ["...", "..."],
-  "concepts_explained": [{"term": "...", "explanation": "..."}],
-  "so_what": "...",
-  "topic_tags": ["vibe-coding", "solo-builders", "AI-tools"],
-  "content_type": "interview",
-  "freshness": "fresh",
-  "tier": "deep_dive",
-  "tier_rationale": "..."
-}
-```
-
----
-
-## 7. Data Models
-
-### ContentItem (raw fetched content)
-
-```
-id                 Hash of source_id + url (unique)
-source_id          e.g., "dwarkesh-patel"
-source_name        e.g., "Dwarkesh Patel"
-content_type       "video" | "article"
-title, url         From source
-published_at       Publication datetime
-fetched_at         When we fetched it
-duration_seconds   Video length (nullable)
-transcript         Full text content (nullable)
-word_count         For filtering and calibration
-status             "pending" | "processed" | "failed" | "skipped" | "no_transcript" | "paywall"
-```
-
-### ProcessedContent (after LLM)
-
-```
-content_id         FK to ContentItem
-core_summary       2-3 sentence summary
-key_insights       JSON array of bullet strings
-concepts_explained JSON array of {term, explanation}
-so_what            Opinionated take
-domains            JSON array of topic tags (dynamic, not fixed categories)
-content_category   market_call | news_analysis | industry_trend | framework | tutorial | interview | commentary
-freshness          fresh | evergreen | stale
-tier               deep_dive | worth_a_look | summary_sufficient
-tier_rationale     Why this tier (includes calibration notes)
-processed_at       Timestamp
-prompt_version     "v5.0"
-model_used         "gemini-2.5-flash" or "gpt-4o"
-source_id          For diversity enforcement
-is_backlog         True if >14 days old at processing time
-delivered          Whether included in a sent briefing
-delivered_at       When delivered (nullable)
-```
-
-### DailyBriefing
-
-```
-id                 Hash of "briefing:{date}"
-briefing_date      Unique per day
-created_at         Timestamp
-fresh_count        Count of fresh items
-backlog_count      Count of backlog items
-total_count        Total items in this briefing
-item_ids           Ordered list of content_ids
-email_sent         Boolean
-email_sent_at      Timestamp (nullable)
-```
-
----
-
-## 8. Email Design
-
-The email is optimized for a 5-10 minute morning scan on mobile. Two layers:
-
-### Subject Line
-```
-Feb 10: Claude's Computer Use Just Changed... (+11 more)
-```
-Optimized for Outlook mobile (~75 char preview). Leads with the top item title, truncated at word boundaries.
-
-### Layer 1 — Headline Index (30-second scan)
-
-A compact table with one row per item:
-- Tier emoji (red/yellow/green circle)
-- Title (truncated to 70 chars)
-- Source, length, relative date
-- Topic tag pills (small gray chips)
-- Backlog badge if applicable
-
-Between the headline index and detail cards: an **editorial intro** — a 1-2 sentence LLM-generated synthesis of the day's themes. Styled with an indigo left border.
-
-### Layer 2 — Detail Cards (5-minute read)
-
-Three tiers render differently:
-
-**Deep Dive (red accent):**
-- 3-sentence summary
-- Top 3 key insights (bullet list)
-- So-what box (blue background, specific opinion)
-- "Watch (42m) →" or "Read →" link
-
-**Worth a Look (default):**
-- 2-sentence summary
-- Top 3 key insights
-- So-what box
-- Watch/Read link
-
-**Summary Sufficient (compact):**
-- 2-sentence summary
-- Inline "Take:" (italic, no box)
-- No link (the summary IS the value)
-
-### Footer
-- Backlog progress bar with percentage
-- Cumulative stats
-- "Built by Sukrit with Claude"
-
----
-
-## 9. Composition Algorithm
-
-```python
-# Step 1: Get fresh content (not yet delivered, <6 weeks old, not stale)
-fresh_pool = get_undelivered_fresh(max_age_weeks=6)
-
-# Step 2: Dynamic backlog allocation
-if fresh_count <= 3:   backlog_target = 8   # Light day
-elif fresh_count <= 6: backlog_target = 5   # Normal day
-elif fresh_count <= 9: backlog_target = 3   # Heavy day
-else:                  backlog_target = 2   # Very heavy day
-
-# Step 3: Get backlog (evergreen only, priority-ordered)
-backlog_pool = get_undelivered_backlog(limit=backlog_target)
-
-# Step 4: Combine → source diversity → deep dive cap → total cap
-all_items = fresh + backlog
-all_items = enforce_source_diversity(all_items)   # Max 2 per source (3 if deep_dive)
-all_items = cap_deep_dives(all_items)             # Max 3, demote excess to worth_a_look
-all_items = prioritize_and_cap(all_items, 18)     # Hard cap
-
-# Step 5: Order for display
-# Group by tier → interleave sources within tier → fresh before backlog
-ordered = order_for_display(all_items)
-```
-
-Key behaviors:
-- Source diversity caps prevent any single source from dominating
-- Deep dive cap demotions are persisted to the database (not just in-memory)
-- Overflow items stay undelivered and surface in future briefings
-- Source interleaving ensures the same source never appears back-to-back
-
----
-
-## 10. Bulk Processing
-
-For large backlogs, the sequential CLI (`process --all --delay 5`) is too slow. The `scripts/concurrent_process.py` script provides async dual-provider processing:
-
-- Splits items between Gemini (70%) and OpenAI (30%) by default
-- Uses asyncio with configurable concurrency (default: 5 Gemini, 3 OpenAI)
-- Single asyncio.Queue consumer for thread-safe DB writes
-- Reuses the Summarizer's `_parse_response()` for consistent post-processing
-
-Real-world concurrency limits (learned the hard way):
-- Gemini with GCP credits: 5 concurrent requests = 0 failures. 20 = frequent 429s.
-- OpenAI: 3 concurrent = occasional 429s. Their tier limits are stricter than documented.
-- 868 items took ~30 minutes at conservative concurrency, not the estimated 3-5 minutes.
-
----
-
-## 11. Edge Cases
+## Edge Cases
 
 | Scenario | Handling |
 |----------|----------|
-| YouTube transcript unavailable | Mark `no_transcript`, skip processing. `retry-transcripts` CLI command recovers later. |
-| Paywall content (Stratechery) | Detected via content pattern matching. Marked `paywall`, excluded. |
-| Content too short (<500 words) | Marked `skipped`. Shorts filter also catches <2min videos at fetch time. |
-| LLM rate limit | Exponential backoff (30s, 60s, 90s). Auto-fallback to secondary provider. |
-| LLM returns banned phrases | Dual-layer enforcement: prompt instructions + regex post-processing. |
-| LLM over-promotes to deep_dive | Signal-based calibration demotes based on word count and source. |
-| Same-day recompose | Returns existing briefing. Delete from DB to recompose. |
-| YouTube bulk transcript fetch | 2s delay between fetches. Without throttling, later sources silently fail. |
-| Very long transcript (>context window) | Truncated at sentence boundary, tagged with "[Content truncated]". |
-| Mac sleep during scheduled run | launchd runs job when Mac wakes (Phase 5, not yet implemented). |
+| Transcript unavailable | Marked and skipped. `retry-transcripts` CLI command recovers later. |
+| Paywall content | Detected via content pattern matching. Excluded from processing. |
+| Content too short (<500 words) | Marked `skipped`. Also caught by Shorts filter at fetch time. |
+| LLM rate limit mid-batch | Exponential backoff (30/60/90s). Auto-fallback to secondary provider. |
+| LLM returns banned phrases | Dual-layer enforcement catches 100% post-processing. |
+| LLM over-promotes tier | Signal-based calibration overrides based on word count + source. |
+| Bulk transcript fetch throttled | 2s delay between fetches. Without this, later sources silently fail. |
+| Transcript exceeds context window | Truncated at sentence boundary with "[Content truncated]" marker. |
 
----
+## What I Built vs. What I'd Build Next
 
-## 12. File Structure
+**Shipped (Phases 1-3):** Content fetching (YouTube API + RSS), LLM processing pipeline with dual-provider fallback, tier-based briefing composition, HTML email delivery. 906 items fetched, 868 processed, daily briefings running.
 
-```
-daily-briefing-tool/
-├── config/
-│   └── sources.yaml              # 8 content sources (YAML)
-├── src/
-│   ├── cli.py                    # All CLI commands (Click)
-│   ├── fetchers/
-│   │   ├── base.py               # Abstract fetcher with throttled fetch_all()
-│   │   ├── youtube.py            # YouTube Data API v3 + transcript extraction + yt-dlp
-│   │   └── rss.py                # RSS parsing + paywall detection + paginated historical fetch
-│   ├── processors/
-│   │   ├── prompts.py            # Prompt v5.0, BLACKLISTED_PHRASES, ENTITY_CORRECTIONS
-│   │   ├── summarizer.py         # Orchestrator: process → parse → blacklist → calibrate → save
-│   │   ├── llm_client.py         # Multi-provider wrapper with auto-fallback
-│   │   ├── gemini_client.py      # Gemini 2.5 Flash via google.genai SDK
-│   │   └── openai_client.py      # GPT-4o wrapper
-│   ├── briefing/
-│   │   ├── composer.py           # Selection, diversity caps, deep dive ceiling, ordering
-│   │   └── emailer.py            # Two-layer HTML email + Resend delivery
-│   └── storage/
-│       ├── database.py           # All SQLite operations
-│       └── models.py             # ContentItem, ProcessedContent, DailyBriefing, etc.
-├── scripts/
-│   ├── full_fetch.py             # Sequential historical fetch across all sources
-│   └── concurrent_process.py     # Async dual-provider bulk LLM processing
-├── data/                         # SQLite DB + HTML backups (gitignored)
-├── .env.example                  # API key template
-└── requirements.txt
-```
+**Next — Web UI (Phase 4):** A local web interface for browsing past briefings, searching across all processed content, and flagging bad summaries. This creates a feedback loop for prompt engineering.
 
----
+**Next — Automation (Phase 5):** macOS launchd scheduler so the pipeline runs every morning without me touching the terminal. Wake-from-sleep handling included.
 
-## 13. Project Status
+**If I were building this as a product for others:** The composition algorithm (source diversity, tier calibration, backlog clearing) generalizes well. The prompt engineering around LLM voice and variety enforcement is transferable. The sources would need to be user-configurable with an onboarding flow. The email template works on mobile but would benefit from a web-based reading experience.
 
-| Phase | Status | What it includes |
-|-------|--------|------------------|
-| 1 — Fetching | **Complete** | YouTube Data API v3, RSS, transcripts, yt-dlp durations, Shorts filter |
-| 2 — LLM Processing | **Complete** | Gemini + OpenAI, prompt v5.0, blacklist, tier calibration, concurrent bulk |
-| 3 — Briefing + Email | **Complete** | Composition algorithm, two-layer HTML email, editorial intro, Resend delivery |
-| 4 — Web UI | Not started | FastAPI + Jinja2 templates planned at `src/web/` |
-| 5 — Automation | Not started | macOS launchd scheduler for daily runs |
+## How It Was Built
+
+This entire project was built using [Claude Code](https://claude.ai/claude-code) over 8 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code.
+
+The collaboration pattern: I'd define what I wanted (a tier system, a blacklist, a source diversity cap), explain the product rationale, and Claude would implement it. When something didn't work — LLM summaries sounding generic, backlog items not surfacing, YouTube Shorts wasting API calls — I'd describe the problem and we'd fix it together.
+
+Eight sessions, zero prior Python experience on my part, fully functional daily email running in production.

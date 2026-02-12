@@ -1,39 +1,75 @@
 # Daily Briefing Tool
 
-A personal content aggregation and summarization system that fetches YouTube videos and RSS articles from curated sources, processes them through LLMs (Gemini primary, OpenAI fallback), composes daily briefings with tier-based prioritization, and delivers them via email.
+**I built a system that reads 900+ pieces of content so I don't have to.**
+
+I follow 8 sources across AI, startups, strategy, and finance — from 3-hour Dwarkesh Patel interviews to 700-word Stratechery newsletters. I had a 6-month backlog and maybe 5 minutes each morning. So I built a pipeline that fetches everything, sends it through LLMs, decides what's worth my time, and delivers a daily email I can scan over coffee.
+
+This was built entirely using [Claude Code](https://claude.ai/claude-code) over 8 iterative sessions. I'm a product manager, not a software engineer. The code was written by Claude; the product decisions, prompt engineering, and system design were mine.
+
+<p align="center">
+  <img src="docs/briefing-screenshot.png" alt="Daily briefing email showing headline index with tier indicators and detail cards" width="500">
+</p>
+
+## What It Actually Does
+
+Every morning, I get an email like this:
+
+- **Headline index** — 12-18 items, each with a tier indicator (deep dive / worth a look / summary sufficient), source, length, and topic tags. I scan this in 30 seconds.
+- **Editorial intro** — A 1-2 sentence LLM-generated synthesis tying the day's themes together.
+- **Detail cards** — Summaries, key insights, and opinionated "so what" takes, tiered by how much value the original adds beyond the summary.
+- **Backlog progress** — The system mixes fresh content with my historical backlog, clearing it over time.
+
+The tier system is the core product decision: not everything deserves the same attention. A **Deep Dive** means "the summary only captures half the value — go watch/read the original." A **Summary Sufficient** means "you've got the gist, move on." This saves me hours per week.
+
+## The Product Decisions That Matter
+
+**Why tiers instead of scores?** A 1-10 score is meaningless. What I actually need to know is: "can I skip the original?" Three tiers answer that directly. And because LLMs tend to rate everything as "worth a look," I built a calibration layer that overrides the LLM based on word count, source reputation, and content type.
+
+**Why a blacklist system?** LLMs produce recognizable slop — "game-changer," "paradigm shift," "leveraging AI." I tell the LLM to avoid these in the prompt, but it ignores that instruction ~20% of the time. So there's a post-processing regex layer that catches and replaces anything that slips through. Two layers, zero tolerance.
+
+**Why source diversity caps?** Without them, a prolific source (20VC publishes daily) would dominate every briefing. Max 2 items per source, with an exception for a 3rd if it's rated deep dive. This forces variety.
+
+**Why dynamic topic tags instead of fixed categories?** Early versions used fixed buckets (AI, Finance, Startups, Strategy). They were too generic to be useful. Now the LLM generates specific tags like "vibe-coding," "GPU-capex," "MSFT" — tags that help me decide in one glance whether to pay attention.
 
 ## How It Works
 
 ```
 fetch → process → compose → send-briefing
-  │         │          │          │
-  │         │          │          └── Email via Resend + LLM editorial intro
-  │         │          └── Selection, diversity caps, tier ordering
-  │         └── LLM summarization → blacklist → tier calibration
-  └── YouTube Data API / RSS → transcripts → SQLite
 ```
 
-1. **Fetch** — Pull videos and articles from configured sources, extract transcripts
-2. **Process** — Send content through Gemini/OpenAI for summarization, tagging, and tiering
-3. **Compose** — Select items for a daily briefing (source diversity, deep dive caps, priority ordering)
-4. **Send** — Generate an HTML email with a headline index + detail cards, deliver via Resend
+1. **Fetch** — YouTube Data API discovers videos, transcripts are extracted, RSS feeds are parsed. Everything goes into SQLite.
+2. **Process** — Each item hits Gemini 2.5 Flash (with OpenAI GPT-4o as automatic fallback). The prompt enforces a specific voice, variety rules, and structural constraints. Post-processing applies blacklist enforcement and signal-based tier calibration.
+3. **Compose** — Selects ~15 items (18 hard cap) with source diversity, deep dive ceiling (max 3), priority ordering, and fresh/backlog mixing.
+4. **Send** — Generates an editorial intro, composes a two-layer HTML email, sends via Resend, saves a backup.
 
-## Tier System
+### Project Structure
 
-| Tier | Meaning | Detail in email |
-|------|---------|-----------------|
-| Deep Dive | Worth consuming in full — summary captures <50% of value | Full card: summary + insights + so-what + link |
-| Worth a Look | Solid content — summary captures 60-80% | Medium card: summary + insights + link |
-| Summary Sufficient | You've got the gist — summary captures 90%+ | Compact: summary + inline take |
+```
+daily-briefing-tool/
+├── config/sources.yaml           # 8 content sources (YAML config)
+├── src/
+│   ├── cli.py                    # All CLI commands (Click)
+│   ├── fetchers/                 # YouTube Data API v3 + RSS + transcripts
+│   ├── processors/               # LLM pipeline: prompt → parse → blacklist → calibrate
+│   ├── briefing/                 # Composition algorithm + HTML email + Resend
+│   └── storage/                  # SQLite database + data models
+├── scripts/
+│   ├── full_fetch.py             # Batch historical fetch
+│   └── concurrent_process.py     # Async dual-provider bulk processing
+└── data/                         # SQLite DB + HTML backups
+```
 
-## Setup
+## Results
 
-### Prerequisites
+- **906 content items** fetched from 8 sources (Jan 2025 — present)
+- **868 items processed** through LLMs (659 via Gemini, 209 via OpenAI)
+- **Tier distribution:** ~30% deep dive, ~58% worth a look, ~12% summary sufficient
+- **Daily briefings delivered** with 12-15 items each, mixing fresh content with backlog
+- **Full backlog processed** in ~30 minutes using concurrent dual-provider processing
 
-- Python 3.9+
-- API keys for Gemini, OpenAI (optional fallback), Resend (email), YouTube Data API v3 (optional)
+## Setup & Usage
 
-### Install
+### Quick Start
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/daily-briefing-tool.git
@@ -41,49 +77,26 @@ cd daily-briefing-tool
 
 python3 -m venv venv
 source venv/bin/activate
-
 pip install -r requirements.txt
-```
 
-### Configure
-
-```bash
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-See `.env.example` for all required and optional keys.
-
-### Initialize
-
-```bash
+cp .env.example .env    # Add your API keys
 python -m src.cli init-db
-python -m src.cli sources  # verify configured sources
 ```
 
-## Usage
-
-### Daily workflow
+### Daily Workflow
 
 ```bash
-# Fetch new content from all sources
-python -m src.cli fetch --all
-
-# Process pending items through LLM
-python -m src.cli process --all --delay 5
-
-# Preview the briefing in your browser
-python -m src.cli compose --preview
-
-# Send the briefing email
-python -m src.cli send-briefing
+python -m src.cli fetch --all              # Fetch new content
+python -m src.cli process --all --delay 5  # Process through LLM
+python -m src.cli compose --preview        # Preview in browser
+python -m src.cli send-briefing            # Send the email
 ```
 
-### CLI Commands
+### All CLI Commands
 
 | Command | Example | Description |
 |---------|---------|-------------|
-| `fetch` | `fetch --all --since 2025-02-01` | Fetch content from sources |
+| `fetch` | `fetch --all --since 2025-02-01` | Fetch content from all sources |
 | `fetch` | `fetch --source dwarkesh-patel --limit 5` | Fetch from one source |
 | `process` | `process --all --limit 10 --delay 5` | Process pending items through LLM |
 | `process` | `process --all --provider openai` | Force a specific LLM provider |
@@ -92,118 +105,44 @@ python -m src.cli send-briefing
 | `send-briefing` | `send-briefing` | Compose + send email + mark delivered |
 | `send-briefing` | `send-briefing --no-email` | Compose + save without sending |
 | `retry-transcripts` | `retry-transcripts --source bg2-pod --delay 3` | Retry failed transcript fetches |
-| `enrich-durations` | `enrich-durations` | Backfill missing video durations via yt-dlp |
-| `list` | `list --status pending` | List content items |
+| `enrich-durations` | `enrich-durations` | Backfill missing video durations |
+| `list` | `list --status pending` | List content items by status |
 | `show` | `show <content_id> --full` | Show item details + transcript |
 | `stats` | `stats` | Database statistics |
 | `sources` | `sources` | List configured sources |
-| `init-db` | `init-db` | Initialize database schema |
 
-### Bulk Processing
-
-For large backlogs, use the concurrent processing script:
+For bulk processing of large backlogs:
 
 ```bash
-# Preview what would be processed
-python scripts/concurrent_process.py --dry-run
-
-# Process with conservative concurrency (recommended)
-python scripts/concurrent_process.py --gemini-concurrency 5 --openai-concurrency 3
-
-# Gemini only
-python scripts/concurrent_process.py --gemini-share 1.0
+python scripts/concurrent_process.py --dry-run                                    # Preview
+python scripts/concurrent_process.py --gemini-concurrency 5 --openai-concurrency 3  # Process
 ```
 
 ## Sources
 
-The tool ships with 8 curated sources (7 YouTube + 1 RSS) in `config/sources.yaml`:
-
 | Source | Type | Focus |
 |--------|------|-------|
 | Nate B Jones | YouTube | AI news & strategy |
-| Greg Isenberg | YouTube | Startups, strategy |
-| Y Combinator | YouTube | Startups |
-| Dwarkesh Patel | YouTube | AI, strategy (deep interviews) |
-| Lenny's Podcast | YouTube | Startups, product, strategy |
-| 20VC (Harry Stebbings) | YouTube | Startups, finance |
+| Greg Isenberg | YouTube | Startups, building in public |
+| Y Combinator | YouTube | Startup advice, founder interviews |
+| Dwarkesh Patel | YouTube | Deep technical interviews (1-3h) |
+| Lenny's Podcast | YouTube | Product, startups, strategy |
+| 20VC (Harry Stebbings) | YouTube | VC/founder interviews |
 | BG2 Pod | YouTube | Finance, AI, strategy |
-| Stratechery (Ben Thompson) | RSS | Strategy, AI (free articles only) |
+| Stratechery | RSS | Strategy & tech analysis (free articles) |
 
-Add or remove sources by editing `config/sources.yaml`.
+Sources are defined in `config/sources.yaml`. Adding a new one is a YAML edit + a `fetch` command.
 
-## Project Structure
+## What I'd Build Next
 
-```
-daily-briefing-tool/
-├── config/
-│   └── sources.yaml              # Content source definitions
-├── src/
-│   ├── cli.py                    # CLI commands (Click framework)
-│   ├── fetchers/
-│   │   ├── base.py               # Abstract base fetcher
-│   │   ├── youtube.py            # YouTube Data API v3 + transcripts + yt-dlp
-│   │   └── rss.py                # RSS feeds + paywall detection + pagination
-│   ├── processors/
-│   │   ├── prompts.py            # LLM prompt templates (versioned)
-│   │   ├── summarizer.py         # Orchestrator: process → parse → blacklist → calibrate
-│   │   ├── llm_client.py         # Unified LLM interface with auto-fallback
-│   │   ├── gemini_client.py      # Gemini wrapper (google.genai SDK)
-│   │   └── openai_client.py      # OpenAI wrapper (GPT-4o)
-│   ├── briefing/
-│   │   ├── composer.py           # Item selection, diversity, caps, ordering
-│   │   └── emailer.py            # HTML email generation + Resend delivery
-│   ├── storage/
-│   │   ├── database.py           # SQLite operations
-│   │   └── models.py             # Data models (dataclasses)
-│   └── web/                      # Web UI (planned, not yet implemented)
-├── scripts/
-│   ├── full_fetch.py             # Batch historical fetch (sequential)
-│   └── concurrent_process.py     # Async bulk LLM processing (concurrent)
-├── data/                         # SQLite DB + HTML briefing backups (gitignored)
-├── .env.example                  # Environment variable template
-├── requirements.txt              # Python dependencies
-└── PRD.md                        # Product requirements document
-```
+- **Web UI** — Browse past briefings, flag bad summaries, search across content
+- **Automation** — macOS launchd scheduler so it runs without me touching the terminal
+- **Feedback loop** — Use flagged summaries to improve prompt engineering over time
 
-## Architecture
+## Built With
 
-### LLM Processing
+[Claude Code](https://claude.ai/claude-code) (all code) · Gemini 2.5 Flash (primary LLM) · OpenAI GPT-4o (fallback) · Resend (email) · SQLite · Python
 
-Each content item is processed through:
+---
 
-1. **Prompt construction** — metadata + full transcript sent to LLM
-2. **JSON response parsing** — structured output with summary, insights, tier, tags
-3. **Blacklist enforcement** — regex-based post-processing catches phrases LLMs ignore ~20% of the time
-4. **Tier calibration** — word count thresholds auto-promote/demote tiers (e.g., 18K+ words → deep dive)
-
-The system uses Gemini as the primary provider with automatic fallback to OpenAI when rate-limited.
-
-### Briefing Composition
-
-The composer selects items with:
-
-- **Source diversity caps** — max 2-3 items per source
-- **Deep dive cap** — max 3 per briefing
-- **Priority ordering** — deep dives first, then worth-a-look, then summary-sufficient
-- **Fresh/backlog mix** — adjusts based on daily volume
-
-### Email Design
-
-Two-layer email optimized for a 5-10 minute morning scan:
-
-- **Layer 1 (Headline Index)** — glanceable list with tier emoji, title, source, length, topic tags
-- **Layer 2 (Detail Cards)** — tier-appropriate summary cards with insights and so-what analysis
-
-## Project Status
-
-| Phase | Status |
-|-------|--------|
-| 1 — Content Fetching | Complete |
-| 2 — LLM Processing | Complete |
-| 3 — Briefing + Email | Complete |
-| 4 — Web UI | Not started |
-| 5 — Automation (launchd) | Not started |
-
-## License
-
-MIT
+*See [PRD.md](PRD.md) for the full product design document — the problem framing, tradeoff decisions, architecture, and prompt engineering behind this system.*
