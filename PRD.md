@@ -88,39 +88,28 @@ The system is a four-stage pipeline:
 fetch → process → compose → send-briefing
 ```
 
-**Fetch.** YouTube Data API v3 discovers videos (full channel history, not just recent RSS). Transcripts are extracted via youtube-transcript-api. RSS feeds are parsed with feedparser. yt-dlp provides video duration metadata. YouTube Shorts (<2 min) are filtered at three layers: URL pattern, API duration, post-enrichment. Everything goes into SQLite.
+**Fetch.** Discovers videos via YouTube's API (full channel history, not just recent uploads), extracts full transcripts, and parses RSS feeds. Filters out YouTube Shorts before they waste downstream processing. Everything goes into SQLite.
 
-**Process.** Each item goes through: prompt construction (v5.0) → LLM call → JSON response parsing → blacklist enforcement → tier calibration. Gemini 2.5 Flash is primary (1M token context window). OpenAI GPT-4o is the automatic fallback — when Gemini rate-limits, the system detects it, switches providers mid-batch, and keeps going.
+**Process.** Each item goes through prompt construction, LLM summarization, blacklist enforcement, and tier calibration. Gemini is the primary provider. OpenAI is the automatic fallback — when Gemini rate-limits, the system detects it, switches providers mid-batch, and keeps going.
 
-**Compose.** Selects ~15 items (18 hard cap) from the undelivered pool. Applies source diversity caps, deep dive ceiling (max 3 per briefing), priority ordering, and source interleaving within tiers to prevent back-to-back items from the same source.
+**Compose.** Selects ~15 items from the undelivered pool. Applies source diversity caps, a deep dive ceiling (max 3 per briefing), priority ordering, and source interleaving to prevent back-to-back items from the same creator.
 
-**Send.** Generates an editorial intro (separate LLM call), renders a two-layer HTML email, sends via Resend, marks items as delivered, saves an HTML backup.
+**Send.** Generates an editorial intro, renders a two-layer HTML email, delivers it, marks items as delivered, and saves an HTML backup.
 
-### Bulk Processing
-
-The initial backlog was 868 items. Processing sequentially with `--delay 5` would take over an hour. So I built a concurrent processing script using asyncio with dual-provider support:
-
-- Splits items between Gemini (70%) and OpenAI (30%)
-- Configurable concurrency (default: 5 Gemini, 3 OpenAI)
-- Single asyncio.Queue consumer for thread-safe database writes
-
-What I learned about API rate limits in practice:
-- Gemini at 5 concurrent: 0 failures. At 20 concurrent: frequent 429s.
-- OpenAI at 3 concurrent: still sees occasional 429s. Their limits are stricter than documented.
-- 868 items took ~30 minutes at conservative concurrency. My initial estimate was 3-5 minutes. I was off by 6-10x.
+For the engineering decisions behind these choices — rate limit strategies, concurrent processing, transcript recovery, edge case handling — see [TECHNICAL.md](TECHNICAL.md).
 
 ## Edge Cases
 
 | Scenario | Handling |
 |----------|----------|
-| Transcript unavailable | Marked and skipped. `retry-transcripts` CLI command recovers later. |
+| Transcript unavailable | Marked and skipped. Automatically recovered on a later run. |
 | Paywall content | Detected via content pattern matching. Excluded from processing. |
-| Content too short (<500 words) | Marked `skipped`. Also caught by Shorts filter at fetch time. |
-| LLM rate limit mid-batch | Exponential backoff (30/60/90s). Auto-fallback to secondary provider. |
-| LLM returns banned phrases | Dual-layer enforcement catches 100% post-processing. |
-| LLM over-promotes tier | Signal-based calibration overrides based on word count + source. |
-| Bulk transcript fetch throttled | 2s delay between fetches. Without this, later sources silently fail. |
-| Transcript exceeds context window | Truncated at sentence boundary with "[Content truncated]" marker. |
+| Content too short (<500 words) | Skipped. Also caught by the Shorts filter at fetch time. |
+| LLM rate limit mid-batch | Automatic retry with backoff. Falls back to secondary provider if the primary stays down. |
+| LLM returns banned phrases | Dual-layer enforcement: prompt-level ban + post-processing regex. 100% catch rate. |
+| LLM over-promotes tier | Signal-based calibration overrides based on word count and source reputation. |
+| Bulk transcript fetch throttled | Throttled automatically. Without pacing, later sources silently fail. |
+| Transcript exceeds context window | Truncated at sentence boundary so the LLM still gets coherent input. |
 
 ## What I Built vs. What I'd Build Next
 
@@ -130,7 +119,13 @@ What I learned about API rate limits in practice:
 
 **Next — Automation (Phase 5):** macOS launchd scheduler so the pipeline runs every morning without me touching the terminal. Wake-from-sleep handling included.
 
-**If I were building this as a product for others:** The composition algorithm (source diversity, tier calibration, backlog clearing) generalizes well. The prompt engineering around LLM voice and variety enforcement is transferable. The sources would need to be user-configurable with an onboarding flow. The email template works on mobile but would benefit from a web-based reading experience.
+### If This Were a Product for Others
+
+The composition algorithm — source diversity, tier calibration, dynamic backlog clearing — generalizes well beyond my 8 sources. The prompt engineering around LLM voice control and variety enforcement is transferable to any summarization product.
+
+What would change: sources would need to be user-configurable with an onboarding flow ("paste a YouTube channel or RSS feed"). The email template works on mobile but would need a web-based reading experience for search, bookmarking, and feedback. And the tier calibration rules would need to learn from user behavior — if someone consistently clicks through "summary sufficient" items from a particular source, maybe that source deserves a higher tier baseline.
+
+The interesting product question is whether the *curation layer* (what makes the cut, how it's ordered, how it's presented) matters more than the *summarization layer* (how well each summary reads). My bet after building this: curation is 70% of the value.
 
 ## How It Was Built
 

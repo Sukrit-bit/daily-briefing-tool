@@ -45,23 +45,6 @@ fetch → process → compose → send-briefing
 3. **Compose** — Selects ~15 items (18 hard cap) with source diversity, deep dive ceiling (max 3), priority ordering, and fresh/backlog mixing.
 4. **Send** — Generates an editorial intro, composes a two-layer HTML email, sends via Resend, saves a backup.
 
-### Project Structure
-
-```
-daily-briefing-tool/
-├── config/sources.yaml           # 8 content sources (YAML config)
-├── src/
-│   ├── cli.py                    # All CLI commands (Click)
-│   ├── fetchers/                 # YouTube Data API v3 + RSS + transcripts
-│   ├── processors/               # LLM pipeline: prompt → parse → blacklist → calibrate
-│   ├── briefing/                 # Composition algorithm + HTML email + Resend
-│   └── storage/                  # SQLite database + data models
-├── scripts/
-│   ├── full_fetch.py             # Batch historical fetch
-│   └── concurrent_process.py     # Async dual-provider bulk processing
-└── data/                         # SQLite DB + HTML backups
-```
-
 ## Results
 
 - **906 content items** fetched from 8 sources (Jan 2025 — present)
@@ -70,12 +53,14 @@ daily-briefing-tool/
 - **Daily briefings delivered** with 12-15 items each, mixing fresh content with backlog
 - **Full backlog processed** in ~30 minutes using concurrent dual-provider processing
 
+What was a 6-month backlog I'd never clear is now a 5-minute morning email.
+
 ## Setup & Usage
 
 ### Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/daily-briefing-tool.git
+git clone https://github.com/Sukrit-bit/daily-briefing-tool.git
 cd daily-briefing-tool
 
 python3 -m venv venv
@@ -95,32 +80,6 @@ python -m src.cli compose --preview        # Preview in browser
 python -m src.cli send-briefing            # Send the email
 ```
 
-### All CLI Commands
-
-| Command | Example | Description |
-|---------|---------|-------------|
-| `fetch` | `fetch --all --since 2025-02-01` | Fetch content from all sources |
-| `fetch` | `fetch --source dwarkesh-patel --limit 5` | Fetch from one source |
-| `process` | `process --all --limit 10 --delay 5` | Process pending items through LLM |
-| `process` | `process --all --provider openai` | Force a specific LLM provider |
-| `compose` | `compose --preview` | Preview briefing in browser |
-| `compose` | `compose --save-html` | Save briefing HTML to `data/` |
-| `send-briefing` | `send-briefing` | Compose + send email + mark delivered |
-| `send-briefing` | `send-briefing --no-email` | Compose + save without sending |
-| `retry-transcripts` | `retry-transcripts --source bg2-pod --delay 3` | Retry failed transcript fetches |
-| `enrich-durations` | `enrich-durations` | Backfill missing video durations |
-| `list` | `list --status pending` | List content items by status |
-| `show` | `show <content_id> --full` | Show item details + transcript |
-| `stats` | `stats` | Database statistics |
-| `sources` | `sources` | List configured sources |
-
-For bulk processing of large backlogs:
-
-```bash
-python scripts/concurrent_process.py --dry-run                                    # Preview
-python scripts/concurrent_process.py --gemini-concurrency 5 --openai-concurrency 3  # Process
-```
-
 ## Sources
 
 | Source | Type | Focus |
@@ -138,9 +97,13 @@ Sources are defined in `config/sources.yaml`. Adding a new one is a YAML edit + 
 
 ## What I'd Build Next
 
-- **Web UI** — Browse past briefings, flag bad summaries, search across content
-- **Automation** — macOS launchd scheduler so it runs without me touching the terminal
-- **Feedback loop** — Use flagged summaries to improve prompt engineering over time
+- **Web UI** — Browse past briefings, flag bad summaries, search across content. Right now there's no way to tell the system "this summary missed the point." A feedback loop would let me improve prompt engineering based on real failures, not guesswork.
+
+- **Automation** — macOS launchd scheduler so the pipeline runs every morning without me touching the terminal. The four commands above should be zero commands.
+
+- **Feedback loop** — Use flagged summaries to build a dataset of what good and bad looks like, then fine-tune prompt engineering against it. This closes the gap between "works most of the time" and "works reliably."
+
+- **If I were building this for others** — The composition algorithm (source diversity, tier calibration, backlog clearing) generalizes well beyond my 8 sources. The main gap is onboarding: users would need a flow to add their own sources, set tier thresholds, and define what "slop" means for their domain. The email works, but a web-based reading experience would let users interact with the content instead of just scanning it.
 
 ## Built With
 
@@ -149,3 +112,5 @@ Sources are defined in `config/sources.yaml`. Adding a new one is a YAML edit + 
 ---
 
 *See [PRD.md](PRD.md) for the full product design document — the problem framing, tradeoff decisions, architecture, and prompt engineering behind this system.*
+
+*See [TECHNICAL.md](TECHNICAL.md) for architecture decisions, edge cases, and engineering tradeoffs.*
