@@ -141,7 +141,7 @@ The interesting product question is whether the *curation layer* (what makes the
 
 ## How It Was Built
 
-This project was built using [Claude Code](https://claude.ai/claude-code) over 10 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code. I've never written Python before this project.
+This project was built using [Claude Code](https://claude.ai/claude-code) over 10 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code.
 
 The collaboration pattern was always the same: I'd describe a product problem ("the summaries all sound the same"), explain what good looked like ("Matt Levine doesn't start every paragraph the same way"), and Claude would implement the solution. When the solution didn't work — which happened constantly — I'd describe what was wrong with the *output*, not the code, and we'd iterate.
 
@@ -159,4 +159,4 @@ Session 10 made it disappear. Gmail SMTP replaced the sandbox email provider. A 
 
 **What building with AI actually looks like:** It's not "describe the app and it appears." It's 10 sessions of describing problems, reading output, finding what's wrong, and describing the problem again. The advantage isn't speed — it's scope. A product manager building alone can't write a concurrent async processing pipeline, a multi-provider LLM integration with fallback, and an inline-styled HTML email renderer. With Claude Code, I could describe what each of those needed to *do*, and focus entirely on whether the output was right. The iteration loop was: product judgment in, code out, test against real data, repeat.
 
-Ten sessions. Zero Python experience. Fully automated daily email in production.
+Ten sessions. Fully automated daily email in production.

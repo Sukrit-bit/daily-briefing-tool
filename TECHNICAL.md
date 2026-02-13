@@ -235,7 +235,7 @@ The CLI uses the Click framework and follows a consistent pattern: every command
 
 ## Closing
 
-The system processes 912 content items through a four-stage pipeline — fetch, process, compose, send — and delivers a daily email. It was built over 10 sessions using Claude Code by a product manager with no prior Python experience. The architecture is straightforward: SQLite for state, two LLM providers with fallback, a composition algorithm with hard constraints, and HTML email as the only interface.
+The system processes 912 content items through a four-stage pipeline — fetch, process, compose, send — and delivers a daily email. It was built over 10 sessions using Claude Code by a product manager. The architecture is straightforward: SQLite for state, two LLM providers with fallback, a composition algorithm with hard constraints, and HTML email as the only interface.
 
 The pattern that kept recurring across every layer: the documented behavior of external services (YouTube, Gemini, OpenAI) doesn't match the actual behavior under load. Rate limits are lower than stated. APIs fail silently instead of returning errors. Sandbox modes have undocumented delivery restrictions. Libraries ship breaking API changes between minor versions.
 

@@ -4,7 +4,7 @@
 
 I follow 8 sources across AI, startups, strategy, and finance — from 3-hour Dwarkesh Patel interviews to 700-word Stratechery newsletters. I had a 6-month backlog and maybe 5 minutes each morning. So I built a pipeline that fetches everything, sends it through LLMs, decides what's worth my time, and delivers a daily email I can scan over coffee.
 
-This was built entirely using [Claude Code](https://claude.ai/claude-code) over 10 iterative sessions. I'm a product manager, not a software engineer. The code was written by Claude; the product decisions, prompt engineering, and system design were mine.
+This was built entirely using [Claude Code](https://claude.ai/claude-code) over 10 iterative sessions. I'm a product manager — the code was written by Claude; the product decisions, prompt engineering, and system design were mine.
 
 ## What It Actually Does
 
