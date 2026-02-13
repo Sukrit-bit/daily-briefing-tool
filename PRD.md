@@ -61,7 +61,7 @@ I switched to dynamic topic tags: the LLM generates specific, concrete tags per 
 
 ### "The backlog should clear itself"
 
-With 900+ items to process and only 15 per briefing, the system needed a strategy for the backlog. The answer: **dynamic allocation** based on how much fresh content arrives each day.
+With 912 items to process and only 15 per briefing, the system needed a strategy for the backlog. The answer: **dynamic allocation** based on how much fresh content arrives each day.
 
 - Light day (0-3 fresh items): pull 8 from backlog
 - Normal day (4-6 fresh): pull 5 from backlog
@@ -70,33 +70,47 @@ With 900+ items to process and only 15 per briefing, the system needed a strateg
 
 Backlog items are filtered to evergreen content only — stale news doesn't get a second chance. Over weeks, the backlog steadily clears without ever making the daily briefing feel like homework.
 
+### "If I have to remember to run it, I won't"
+
+The system runs four commands in sequence: fetch, process, compose, send. In the manual workflow, that's a terminal, a virtual environment, and 2 minutes of waiting. It's fine on a Saturday. It doesn't survive a Monday.
+
+The whole point of this tool is saving time. Requiring me to spend 2 minutes to save 30 defeats the purpose. So the pipeline runs automatically every morning at 7 AM. If my Mac is asleep, it fires when I open the lid. If a step fails, the next step still runs with whatever succeeded — a partial briefing is better than no briefing.
+
+The product insight: **automation isn't a nice-to-have feature that ships later. It's the difference between a tool you built and a tool you use.** Every content summarizer I've tried required me to go somewhere and do something. The ones I stopped using are the ones that required a habit change. This one requires nothing. The email arrives. I read it or I don't.
+
 ## The Email
 
-The briefing email is the product's only interface. It needs to work in a 5-10 minute morning scan.
+The email is the entire product. There's no app, no dashboard, no feed to check. If the email doesn't work in a 5-10 minute morning scan, nothing works.
 
-**Subject line:** `Feb 12: Marc Andreessen: The real AI boom hasn't... (+11 more)` — Optimized for Outlook mobile's ~75 character preview. Leads with the most important item.
+This constraint shaped every design decision.
 
-**Layer 1 — Headline Index (30-second scan).** A compact table: tier emoji, title (truncated to 70 chars), source, length, relative date, and topic tag pills. I scan this over coffee and already know what kind of day it is. Between the index and the detail cards: an editorial intro — a 1-2 sentence LLM-generated synthesis of the day's themes.
+**Subject line:** `Feb 12: Marc Andreessen: The real AI boom hasn't... (+11 more)` — The subject is optimized for Outlook mobile's ~75 character preview. It leads with the most important item, not a generic "Daily Briefing" header. The goal: give me enough context to decide whether to open it *now* or after my first meeting.
 
-**Layer 2 — Detail Cards (5-minute read).** Each tier renders differently. Deep dives get a 3-sentence summary, 3 key insights, a "so what" opinion box, and a Watch/Read link with duration. Summary sufficient items get two sentences and an inline take — no link, because the summary *is* the value.
+**Why two layers?** Because scanning and reading are different activities with different time budgets. Some mornings I have 30 seconds. Some mornings I have 10 minutes. A single-layer design forces me to choose between "skim everything" and "read everything." Two layers let me do the 30-second scan every morning and the 5-minute read when I have time.
+
+**Layer 1 — Headline Index (30-second scan).** Tier emoji, title, source, length, relative date, topic tag pills. No summaries, no insights — just enough to answer "what kind of day is it?" Between the index and the detail cards: an editorial intro that synthesizes the day's themes into 1-2 sentences. This exists because 15 individual items don't tell you what's *happening* — the editorial intro connects them.
+
+**Layer 2 — Detail Cards (5-minute read).** Each tier renders with a different information density — and this is a deliberate product decision, not just formatting. Deep dives get the full treatment: 3-sentence summary, 3 key insights, an opinionated "so what" box, and a Watch/Read link. Summary sufficient items get two sentences and an inline take — *no link*. Omitting the link is the design choice that matters most. Including a link would imply "there's more value in the original." For summary sufficient items, there isn't. The summary *is* the value. The missing link is the product saying: "You're done. Move on."
+
+**Why not a web UI?** Email is the only interface that survives the "I haven't opened a new tab yet" test. It's already in my morning flow. There's no app to install, no habit to build, no URL to remember. The tradeoff is obvious — no search, no bookmarking, no feedback mechanism. But for a morning triage tool, reach beats richness.
 
 ## Architecture
 
-The system is a four-stage pipeline:
+Four stages, each with a distinct job:
 
 ```
-fetch → process → compose → send-briefing
+fetch → process → compose → send
 ```
 
-**Fetch.** Discovers videos via YouTube's API (full channel history, not just recent uploads), extracts full transcripts, and parses RSS feeds. Filters out YouTube Shorts before they waste downstream processing. Everything goes into SQLite.
+**Fetch** answers: *"What's new?"* It discovers every video and article from my 8 sources — going back to January 2025, not just the recent feed — and extracts the full text. Short clips and YouTube Shorts are filtered out before anything else touches them. The system knows I care about substance, not volume.
 
-**Process.** Each item goes through prompt construction, LLM summarization, blacklist enforcement, and tier calibration. Gemini is the primary provider. OpenAI is the automatic fallback — when Gemini rate-limits, the system detects it, switches providers mid-batch, and keeps going.
+**Process** answers: *"What does this mean for me?"* Each item gets summarized, tagged, tiered, and checked for LLM slop. If one AI provider is down, the system silently switches to the other and keeps going. The reader never sees a gap.
 
-**Compose.** Selects ~15 items from the undelivered pool. Applies source diversity caps, a deep dive ceiling (max 3 per briefing), priority ordering, and source interleaving to prevent back-to-back items from the same creator.
+**Compose** answers: *"What's worth my time today?"* It selects ~15 items from the undelivered pool, enforcing the rules described above — source diversity, deep dive ceiling, backlog mixing, and source interleaving so I never see three items from the same creator back-to-back. This is where the curation value lives.
 
-**Send.** Generates an editorial intro, renders a two-layer HTML email, delivers it, marks items as delivered, and saves an HTML backup.
+**Send** answers: *"How do I get it without thinking about it?"* It generates the editorial intro, builds the email, delivers it to all recipients, and saves a backup. The full pipeline runs automatically every morning via a scheduler — I haven't touched the terminal in weeks. If my laptop is asleep at 7 AM, the briefing runs when I open the lid.
 
-For the engineering decisions behind these choices — rate limit strategies, concurrent processing, transcript recovery, edge case handling — see [TECHNICAL.md](TECHNICAL.md).
+For the engineering decisions behind each stage — rate limit strategies, concurrent processing, transcript recovery, edge case handling — see [TECHNICAL.md](TECHNICAL.md).
 
 ## Edge Cases
 
@@ -127,8 +141,22 @@ The interesting product question is whether the *curation layer* (what makes the
 
 ## How It Was Built
 
-This entire project was built using [Claude Code](https://claude.ai/claude-code) over 10 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code.
+This project was built using [Claude Code](https://claude.ai/claude-code) over 10 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code. I've never written Python before this project.
 
-The collaboration pattern: I'd define what I wanted (a tier system, a blacklist, a source diversity cap), explain the product rationale, and Claude would implement it. When something didn't work — LLM summaries sounding generic, backlog items not surfacing, YouTube Shorts wasting API calls — I'd describe the problem and we'd fix it together.
+The collaboration pattern was always the same: I'd describe a product problem ("the summaries all sound the same"), explain what good looked like ("Matt Levine doesn't start every paragraph the same way"), and Claude would implement the solution. When the solution didn't work — which happened constantly — I'd describe what was wrong with the *output*, not the code, and we'd iterate.
 
-Ten sessions, zero prior Python experience on my part, fully automated daily email running in production.
+**What V1 looked like vs. V10:**
+
+Session 1 produced a working pipeline that fetched 10 videos and summarized them. The summaries were generic. Every one started with "[Person] discusses the importance of..." The tier assignments were useless — everything was "worth a look." There was no blacklist, no calibration, no source diversity. The email was a wall of text.
+
+By session 5, the summaries had voice. The blacklist caught LLM slop. Tier calibration actually differentiated content. But the system could only handle 15 videos at a time because of rate limits, and the email looked bad on mobile.
+
+By session 8, the full backlog of 868 items was processed. Concurrent dual-provider processing cleared it in 30 minutes. The email was a two-layer design with topic tag pills and editorial intros. But I still had to run 4 commands in a terminal every morning.
+
+Session 10 made it disappear. Gmail SMTP replaced the sandbox email provider. A scheduler runs the pipeline at 7 AM. The briefing arrives without me doing anything. The tool went from "something I built" to "something I use."
+
+**The biggest wrong assumption:** I thought the hard problem would be summarization quality. It wasn't. The hard problem was *curation* — deciding what makes the cut, how it's ordered, and how it's presented. A mediocre summary of the right 15 items beats a perfect summary of the wrong 15. I spent more time on the composition algorithm (source diversity, tier caps, backlog mixing, display ordering) than on the prompt engineering. That's the part that makes the morning email feel curated instead of generated.
+
+**What building with AI actually looks like:** It's not "describe the app and it appears." It's 10 sessions of describing problems, reading output, finding what's wrong, and describing the problem again. The advantage isn't speed — it's scope. A product manager building alone can't write a concurrent async processing pipeline, a multi-provider LLM integration with fallback, and an inline-styled HTML email renderer. With Claude Code, I could describe what each of those needed to *do*, and focus entirely on whether the output was right. The iteration loop was: product judgment in, code out, test against real data, repeat.
+
+Ten sessions. Zero Python experience. Fully automated daily email in production.
