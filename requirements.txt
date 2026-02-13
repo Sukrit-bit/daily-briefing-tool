@@ -20,7 +20,7 @@ openai>=1.0.0                 # OpenAI API (fallback provider)
 # SQLite is built into Python, no package needed
 
 # Email
-resend>=2.0.0                 # Email delivery
+# Gmail SMTP via stdlib smtplib — no external package needed
 
 # Web UI
 fastapi>=0.109.0              # Web framework
