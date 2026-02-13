@@ -127,3 +127,5 @@ Sources are defined in `config/sources.yaml`. Adding a new one is a YAML edit + 
 *See [PRD.md](PRD.md) for the full product design document — the problem framing, tradeoff decisions, architecture, and prompt engineering behind this system.*
 
 *See [TECHNICAL.md](TECHNICAL.md) for architecture decisions, edge cases, and engineering tradeoffs.*
+
+*See [PROMPT.md](PROMPT.md) for the exact LLM prompt — the most iterated artifact in the project.*

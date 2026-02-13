@@ -49,6 +49,8 @@ I addressed this at three levels:
 
 **Blacklist enforcement.** LLMs ignore prompt-level bans about 20% of the time. So every summary goes through a post-processing regex layer that catches and replaces 12 banned phrases. "Game-changer" becomes something specific. "The landscape" becomes something concrete. Two layers, zero tolerance.
 
+The full prompt is the most iterated artifact in the project — five major versions across ten sessions. See [PROMPT.md](PROMPT.md).
+
 ### "Fixed categories are useless. Dynamic tags are useful."
 
 Early versions tagged everything with generic buckets: "AI," "Finance," "Startups," "Strategy." Every item got 2-3 of these. They added zero information.

@@ -105,6 +105,17 @@ def _so_what_box(so_what: str) -> str:
     """
 
 
+def _topic_tag_pills(domains: list[str]) -> str:
+    """Generate inline topic tag pills for detail cards."""
+    if not domains:
+        return ""
+    pills = " ".join(
+        f'<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:#f1f5f9;color:#475569;margin-right:2px;">{tag}</span>'
+        for tag in domains[:3]
+    )
+    return f'<p style="margin:2px 0 0 0;">{pills}</p>'
+
+
 def _so_what_inline(so_what: str) -> str:
     """Generate a compact inline so-what for summary_sufficient cards."""
     if not so_what:
@@ -230,11 +241,11 @@ def generate_briefing_html(
     # Count badges
     badges = []
     if deep_dives:
-        badges.append(f'<span style="padding:3px 10px;border-radius:12px;font-size:12px;background:#fef2f2;color:#991b1b;">🔴 {len(deep_dives)}</span>')
+        badges.append(f'<span style="padding:3px 10px;border-radius:12px;font-size:12px;white-space:nowrap;background:#fef2f2;color:#991b1b;">🔴&nbsp;{len(deep_dives)}</span>')
     if worth_a_look:
-        badges.append(f'<span style="padding:3px 10px;border-radius:12px;font-size:12px;background:#fefce8;color:#854d0e;">🟡 {len(worth_a_look)}</span>')
+        badges.append(f'<span style="padding:3px 10px;border-radius:12px;font-size:12px;white-space:nowrap;background:#fefce8;color:#854d0e;">🟡&nbsp;{len(worth_a_look)}</span>')
     if summary_sufficient:
-        badges.append(f'<span style="padding:3px 10px;border-radius:12px;font-size:12px;background:#f0fdf4;color:#166534;">🟢 {len(summary_sufficient)}</span>')
+        badges.append(f'<span style="padding:3px 10px;border-radius:12px;font-size:12px;white-space:nowrap;background:#f0fdf4;color:#166534;">🟢&nbsp;{len(summary_sufficient)}</span>')
     badges_html = " ".join(badges)
 
     # Footer stats
@@ -333,6 +344,8 @@ def _build_tier_section(
 
         title_clean = _clean_title(content.title)
 
+        tag_pills_html = _topic_tag_pills(processed.domains)
+
         if detail_level == "full":
             # Deep dive: summary (2-3 sentences) + top 3 insights + so_what + link
             summary_text = _truncate_sentences(processed.core_summary, 3)
@@ -352,8 +365,9 @@ def _build_tier_section(
                 <h3 style="margin:0 0 4px 0;font-size:15px;">
                     <a href="{content.url}" style="color:#0f172a;text-decoration:none;">{title_clean}</a>
                 </h3>
-                <p style="margin:0 0 6px 0;font-size:12px;color:#94a3b8;">{meta}</p>
-                <p style="margin:0;font-size:13px;color:#334155;line-height:1.5;">{summary_text}</p>
+                <p style="margin:0 0 4px 0;font-size:12px;color:#94a3b8;">{meta}</p>
+                {tag_pills_html}
+                <p style="margin:6px 0 0 0;font-size:13px;color:#334155;line-height:1.5;">{summary_text}</p>
                 {insights_html}
                 {so_what_html}
                 <p style="margin:8px 0 0 0;">
@@ -383,8 +397,9 @@ def _build_tier_section(
                 <h3 style="margin:0 0 4px 0;font-size:15px;">
                     <a href="{content.url}" style="color:#0f172a;text-decoration:none;">{title_clean}</a>
                 </h3>
-                <p style="margin:0 0 6px 0;font-size:12px;color:#94a3b8;">{meta}</p>
-                <p style="margin:0;font-size:13px;color:#334155;line-height:1.5;">{summary_text}</p>
+                <p style="margin:0 0 4px 0;font-size:12px;color:#94a3b8;">{meta}</p>
+                {tag_pills_html}
+                <p style="margin:6px 0 0 0;font-size:13px;color:#334155;line-height:1.5;">{summary_text}</p>
                 {insights_html}
                 {so_what_html}
                 <p style="margin:6px 0 0 0;">
@@ -406,7 +421,8 @@ def _build_tier_section(
                     <a href="{content.url}" style="color:#0f172a;text-decoration:none;">{title_clean}</a>
                 </h3>
                 <p style="margin:0 0 4px 0;font-size:12px;color:#94a3b8;">{meta}</p>
-                <p style="margin:0;font-size:13px;color:#64748b;line-height:1.4;">{summary_text}</p>
+                {tag_pills_html}
+                <p style="margin:6px 0 0 0;font-size:13px;color:#64748b;line-height:1.4;">{summary_text}</p>
                 {so_what_html}
             </div>
             """

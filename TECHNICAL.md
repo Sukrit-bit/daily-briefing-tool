@@ -1,6 +1,6 @@
 # Technical Decisions
 
-This document covers the engineering decisions behind the Daily Briefing Tool — why things are built the way they are, what broke along the way, and what the tradeoffs look like in practice. For the product story, see [PRD.md](PRD.md). For setup and overview, see [README.md](README.md).
+This document covers the engineering decisions behind the Daily Briefing Tool — why things are built the way they are, what broke along the way, and what the tradeoffs look like in practice. For the product story, see [PRD.md](PRD.md). For setup and overview, see [README.md](README.md). For the exact LLM prompt, see [PROMPT.md](PROMPT.md).
 
 The system was built on Python 3.9.6 (macOS system Python), which imposed one recurring constraint: modern type hints like `list[str]` and `dict[str, str]` aren't natively supported at runtime. Every file needs `from __future__ import annotations` at the top to make these work (it defers type annotation evaluation). Dataclass field ordering also matters in Python 3.9 — fields with defaults must come after fields without, and getting this wrong produces a `TypeError` that doesn't obviously point to the field ordering issue. These are small things, but they caused several debugging sessions before becoming a standing project rule.
 
@@ -31,6 +31,8 @@ The maximum output token limit is set to 4,096 for both providers. This is gener
 ---
 
 ## Prompt Engineering
+
+The full prompt is documented in [PROMPT.md](PROMPT.md). What follows here are the engineering decisions behind it.
 
 Every processed summary records which prompt version produced it (currently v5.0). This matters because when you change the prompt, you need to know whether the new version is actually better. Storing the version per item means you can compare summaries from v4.0 and v5.0 side by side for the same source. Over 8 development sessions, the prompt went through 5 major versions — each one shaped by reading the output and finding specific patterns that needed fixing.
 
