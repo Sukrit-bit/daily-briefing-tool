@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Job identity -->
+    <key>Label</key>
+    <string>com.sukrit.daily-briefing</string>
+
+    <!-- What to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/sukritandvandana/Documents/Projects/daily-briefing-tool/scripts/daily_briefing.sh</string>
+    </array>
+
+    <!-- Working directory (so relative paths in Python resolve correctly) -->
+    <key>WorkingDirectory</key>
+    <string>/Users/sukritandvandana/Documents/Projects/daily-briefing-tool</string>
+
+    <!-- Schedule: every day at 7:00 AM (local timezone, i.e. IST) -->
+    <!-- launchd will automatically run missed jobs when the Mac wakes from sleep -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Logging: launchd-level stdout/stderr (the script also writes its own logs) -->
+    <key>StandardOutPath</key>
+    <string>/Users/sukritandvandana/Documents/Projects/daily-briefing-tool/data/logs/launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/sukritandvandana/Documents/Projects/daily-briefing-tool/data/logs/launchd_stderr.log</string>
+
+    <!-- Environment: ensure Python output is unbuffered for proper logging -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Timeout: allow up to 30 minutes for the full pipeline -->
+    <key>TimeOut</key>
+    <integer>1800</integer>
+
+    <!-- Nice value: run at lower priority so it doesn't hog resources -->
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>

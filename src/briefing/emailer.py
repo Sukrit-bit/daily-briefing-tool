@@ -1,18 +1,20 @@
 """
 Email generation and delivery for daily briefings.
 
-Generates HTML email from briefing data and sends via Resend.
+Generates HTML email from briefing data and sends via Gmail SMTP.
 The email is optimized for a 5-10 minute morning scan:
 - Layer 1: Glanceable headline index (30 seconds)
 - Layer 2: Compact summary cards (5 minutes)
 """
+from __future__ import annotations
 
 import html
 import os
+import smtplib
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
-
-import resend
 
 from ..storage.models import DailyBriefing, ContentItem, ProcessedContent
 
@@ -444,24 +446,23 @@ def generate_subject_line(briefing: DailyBriefing, items: list[dict]) -> str:
 
 
 class Emailer:
-    """Sends briefing emails via Resend."""
+    """Sends briefing emails via Gmail SMTP."""
 
     def __init__(
         self,
-        api_key: str = None,
         from_email: str = None,
         to_email: str = None,
     ):
-        self.api_key = api_key or os.getenv("RESEND_API_KEY")
-        self.from_email = from_email or os.getenv("EMAIL_FROM", "Daily Briefing <onboarding@resend.dev>")
-        self.to_email = to_email or os.getenv("EMAIL_TO")
+        self.smtp_user = os.getenv("SMTP_USER")
+        self.smtp_password = os.getenv("SMTP_APP_PASSWORD")
+        self.from_email = from_email or os.getenv("EMAIL_FROM", f"Daily Briefing <{self.smtp_user}>")
+        raw_to = to_email or os.getenv("EMAIL_TO", "")
+        self.to_emails = [e.strip() for e in raw_to.split(",") if e.strip()]
 
-        if not self.api_key:
-            raise ValueError("RESEND_API_KEY not set")
-        if not self.to_email:
+        if not self.smtp_user or not self.smtp_password:
+            raise ValueError("SMTP_USER and SMTP_APP_PASSWORD must be set in .env")
+        if not self.to_emails:
             raise ValueError("EMAIL_TO not set")
-
-        resend.api_key = self.api_key
 
     def send_briefing(
         self,
@@ -472,7 +473,7 @@ class Emailer:
         editorial_intro: Optional[str] = None,
     ) -> bool:
         """
-        Generate and send the briefing email.
+        Generate and send the briefing email via Gmail SMTP.
 
         Returns:
             True if sent successfully
@@ -481,13 +482,18 @@ class Emailer:
         subject = generate_subject_line(briefing, items)
 
         try:
-            result = resend.Emails.send({
-                "from": self.from_email,
-                "to": [self.to_email],
-                "subject": subject,
-                "html": email_html,
-            })
-            print(f"  Email sent! ID: {result.get('id', 'unknown')}")
+            msg = MIMEMultipart("alternative")
+            msg["From"] = self.from_email
+            msg["To"] = ", ".join(self.to_emails)
+            msg["Subject"] = subject
+            msg.attach(MIMEText(email_html, "html"))
+
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_password)
+                server.sendmail(self.smtp_user, self.to_emails, msg.as_string())
+
+            print(f"  Email sent to {', '.join(self.to_emails)}")
             return True
 
         except Exception as e:
