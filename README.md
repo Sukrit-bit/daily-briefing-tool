@@ -72,7 +72,21 @@ cp .env.example .env    # Add your API keys
 python -m src.cli init-db
 ```
 
-### Daily Workflow
+### Automate It (macOS)
+
+The included launchd configuration runs the full pipeline every morning at 7 AM — no terminal required.
+
+```bash
+# Edit the plist to set your project path, then:
+cp com.sukrit.daily-briefing.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.sukrit.daily-briefing.plist
+```
+
+**One-time setup:** Grant Full Disk Access to `/bin/bash` in System Settings > Privacy & Security (required because the project lives in `~/Documents`). If your Mac is asleep at 7 AM, launchd runs the job when it wakes.
+
+Logs: `data/logs/briefing_YYYY-MM-DD.log`
+
+### Manual Workflow
 
 ```bash
 python -m src.cli fetch --all              # Fetch new content
