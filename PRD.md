@@ -113,11 +113,9 @@ For the engineering decisions behind these choices — rate limit strategies, co
 
 ## What I Built vs. What I'd Build Next
 
-**Shipped (Phases 1-3):** Content fetching (YouTube API + RSS), LLM processing pipeline with dual-provider fallback, tier-based briefing composition, HTML email delivery. 906 items fetched, 868 processed, daily briefings running.
+**Shipped (Phases 1-3, 5):** Content fetching (YouTube API + RSS), LLM processing pipeline with dual-provider fallback, tier-based briefing composition, HTML email delivery to multiple recipients, and fully automated daily scheduling via macOS launchd — including wake-from-sleep handling. 912 items fetched, 874 processed, daily briefings running hands-free every morning.
 
 **Next — Web UI (Phase 4):** A local web interface for browsing past briefings, searching across all processed content, and flagging bad summaries. This creates a feedback loop for prompt engineering.
-
-**Next — Automation (Phase 5):** macOS launchd scheduler so the pipeline runs every morning without me touching the terminal. Wake-from-sleep handling included.
 
 ### If This Were a Product for Others
 
@@ -129,8 +127,8 @@ The interesting product question is whether the *curation layer* (what makes the
 
 ## How It Was Built
 
-This entire project was built using [Claude Code](https://claude.ai/claude-code) over 8 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code.
+This entire project was built using [Claude Code](https://claude.ai/claude-code) over 10 sessions. I'm a product manager — the product thinking, system design, prompt engineering, and editorial voice are mine. Claude wrote the code.
 
 The collaboration pattern: I'd define what I wanted (a tier system, a blacklist, a source diversity cap), explain the product rationale, and Claude would implement it. When something didn't work — LLM summaries sounding generic, backlog items not surfacing, YouTube Shorts wasting API calls — I'd describe the problem and we'd fix it together.
 
-Eight sessions, zero prior Python experience on my part, fully functional daily email running in production.
+Ten sessions, zero prior Python experience on my part, fully automated daily email running in production.

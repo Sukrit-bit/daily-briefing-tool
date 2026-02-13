@@ -4,7 +4,7 @@
 
 I follow 8 sources across AI, startups, strategy, and finance — from 3-hour Dwarkesh Patel interviews to 700-word Stratechery newsletters. I had a 6-month backlog and maybe 5 minutes each morning. So I built a pipeline that fetches everything, sends it through LLMs, decides what's worth my time, and delivers a daily email I can scan over coffee.
 
-This was built entirely using [Claude Code](https://claude.ai/claude-code) over 8 iterative sessions. I'm a product manager, not a software engineer. The code was written by Claude; the product decisions, prompt engineering, and system design were mine.
+This was built entirely using [Claude Code](https://claude.ai/claude-code) over 10 iterative sessions. I'm a product manager, not a software engineer. The code was written by Claude; the product decisions, prompt engineering, and system design were mine.
 
 ## What It Actually Does
 
@@ -43,14 +43,15 @@ fetch → process → compose → send-briefing
 1. **Fetch** — YouTube Data API discovers videos, transcripts are extracted, RSS feeds are parsed. Everything goes into SQLite.
 2. **Process** — Each item hits Gemini 2.5 Flash (with OpenAI GPT-4o as automatic fallback). The prompt enforces a specific voice, variety rules, and structural constraints. Post-processing applies blacklist enforcement and signal-based tier calibration.
 3. **Compose** — Selects ~15 items (18 hard cap) with source diversity, deep dive ceiling (max 3), priority ordering, and fresh/backlog mixing.
-4. **Send** — Generates an editorial intro, composes a two-layer HTML email, sends via Resend, saves a backup.
+4. **Send** — Generates an editorial intro, composes a two-layer HTML email, sends via Gmail SMTP to multiple recipients, saves a backup.
 
 ## Results
 
-- **906 content items** fetched from 8 sources (Jan 2025 — present)
-- **868 items processed** through LLMs (659 via Gemini, 209 via OpenAI)
+- **912 content items** fetched from 8 sources (Jan 2025 — present)
+- **874 items processed** through LLMs (659 via Gemini, 209 via OpenAI)
 - **Tier distribution:** ~30% deep dive, ~58% worth a look, ~12% summary sufficient
 - **Daily briefings delivered** with 12-15 items each, mixing fresh content with backlog
+- **Fully automated** — runs every morning via macOS launchd, no terminal required
 - **Full backlog processed** in ~30 minutes using concurrent dual-provider processing
 
 What was a 6-month backlog I'd never clear is now a 5-minute morning email.
@@ -99,15 +100,13 @@ Sources are defined in `config/sources.yaml`. Adding a new one is a YAML edit + 
 
 - **Web UI** — Browse past briefings, flag bad summaries, search across content. Right now there's no way to tell the system "this summary missed the point." A feedback loop would let me improve prompt engineering based on real failures, not guesswork.
 
-- **Automation** — macOS launchd scheduler so the pipeline runs every morning without me touching the terminal. The four commands above should be zero commands.
-
 - **Feedback loop** — Use flagged summaries to build a dataset of what good and bad looks like, then fine-tune prompt engineering against it. This closes the gap between "works most of the time" and "works reliably."
 
 - **If I were building this for others** — The composition algorithm (source diversity, tier calibration, backlog clearing) generalizes well beyond my 8 sources. The main gap is onboarding: users would need a flow to add their own sources, set tier thresholds, and define what "slop" means for their domain. The email works, but a web-based reading experience would let users interact with the content instead of just scanning it.
 
 ## Built With
 
-[Claude Code](https://claude.ai/claude-code) (all code) · Gemini 2.5 Flash (primary LLM) · OpenAI GPT-4o (fallback) · Resend (email) · SQLite · Python
+[Claude Code](https://claude.ai/claude-code) (all code) · Gemini 2.5 Flash (primary LLM) · OpenAI GPT-4o (fallback) · Gmail SMTP (email) · SQLite · Python
 
 ---
 
