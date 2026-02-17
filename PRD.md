@@ -76,7 +76,7 @@ Backlog items are filtered to evergreen content only — stale news doesn't get 
 
 The system runs four commands in sequence: fetch, process, compose, send. In the manual workflow, that's a terminal, a virtual environment, and 2 minutes of waiting. It's fine on a Saturday. It doesn't survive a Monday.
 
-The whole point of this tool is saving time. Requiring me to spend 2 minutes to save 30 defeats the purpose. So the pipeline runs automatically every morning at 7 AM. If my Mac is asleep, it fires when I open the lid. If a step fails, the next step still runs with whatever succeeded — a partial briefing is better than no briefing.
+The whole point of this tool is saving time. Requiring me to spend 2 minutes to save 30 defeats the purpose. So the pipeline runs automatically every morning at 7 AM, even if my laptop is off. If a step fails, the next step still runs with whatever succeeded — a partial briefing is better than no briefing.
 
 The product insight: **automation isn't a nice-to-have feature that ships later. It's the difference between a tool you built and a tool you use.** Every content summarizer I've tried required me to go somewhere and do something. The ones I stopped using are the ones that required a habit change. This one requires nothing. The email arrives. I read it or I don't.
 
@@ -110,7 +110,7 @@ fetch → process → compose → send
 
 **Compose** answers: *"What's worth my time today?"* It selects ~15 items from the undelivered pool, enforcing the rules described above — source diversity, deep dive ceiling, backlog mixing, and source interleaving so I never see three items from the same creator back-to-back. This is where the curation value lives.
 
-**Send** answers: *"How do I get it without thinking about it?"* It generates the editorial intro, builds the email, delivers it to all recipients, and saves a backup. The full pipeline runs automatically every morning via a scheduler — I haven't touched the terminal in weeks. If my laptop is asleep at 7 AM, the briefing runs when I open the lid.
+**Send** answers: *"How do I get it without thinking about it?"* It generates the editorial intro, builds the email, delivers it to all recipients, and saves a backup. The full pipeline runs automatically every morning — I haven't touched the terminal in weeks.
 
 For the engineering decisions behind each stage — rate limit strategies, concurrent processing, transcript recovery, edge case handling — see [TECHNICAL.md](TECHNICAL.md).
 
@@ -129,7 +129,7 @@ For the engineering decisions behind each stage — rate limit strategies, concu
 
 ## What I Built vs. What I'd Build Next
 
-**Shipped (Phases 1-3, 5):** Content fetching (YouTube API + RSS), LLM processing pipeline with dual-provider fallback, tier-based briefing composition, HTML email delivery to multiple recipients, and fully automated daily scheduling via macOS launchd — including wake-from-sleep handling. 912 items fetched, 874 processed, daily briefings running hands-free every morning.
+**Shipped (Phases 1-3, 5):** Content fetching (YouTube API + RSS), LLM processing pipeline with dual-provider fallback, tier-based briefing composition, HTML email delivery to multiple recipients, and fully automated daily scheduling with cloud and local fallback options. 912 items fetched, 874 processed, daily briefings running hands-free every morning.
 
 **Next — Web UI (Phase 4):** A local web interface for browsing past briefings, searching across all processed content, and flagging bad summaries. This creates a feedback loop for prompt engineering.
 
