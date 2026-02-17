@@ -51,7 +51,7 @@ fetch → process → compose → send-briefing
 - **874 items processed** through LLMs (659 via Gemini, 209 via OpenAI)
 - **Tier distribution:** ~30% deep dive, ~58% worth a look, ~12% summary sufficient
 - **Daily briefings delivered** with 12-15 items each, mixing fresh content with backlog
-- **Fully automated** — runs every morning via macOS launchd, no terminal required
+- **Fully automated** — runs daily via GitHub Actions in the cloud, no laptop required
 - **Full backlog processed** in ~30 minutes using concurrent dual-provider processing
 
 What was a 6-month backlog I'd never clear is now a 5-minute morning email.
@@ -72,19 +72,11 @@ cp .env.example .env    # Add your API keys
 python -m src.cli init-db
 ```
 
-### Automate It (macOS)
+### Automation
 
-The included launchd configuration runs the full pipeline every morning at 7 AM — no terminal required.
+The pipeline runs daily via GitHub Actions — no local machine needs to be on. It fetches new content, processes it through LLMs, composes the briefing, and sends the email automatically every morning.
 
-```bash
-# Edit the plist to set your project path, then:
-cp com.sukrit.daily-briefing.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.sukrit.daily-briefing.plist
-```
-
-**One-time setup:** Grant Full Disk Access to `/bin/bash` in System Settings > Privacy & Security (required because the project lives in `~/Documents`). If your Mac is asleep at 7 AM, launchd runs the job when it wakes.
-
-Logs: `data/logs/briefing_YYYY-MM-DD.log`
+A macOS launchd option is also included for local scheduling if preferred.
 
 ### Manual Workflow
 
