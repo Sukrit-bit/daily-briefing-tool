@@ -1,0 +1,154 @@
+name: Daily Briefing Pipeline
+
+on:
+  schedule:
+    # 7:00 AM IST = 1:30 AM UTC
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+    # Manual trigger for testing or recovery
+    inputs:
+      since_date:
+        description: 'Override --since date (YYYY-MM-DD). Leave empty for yesterday.'
+        required: false
+        type: string
+
+# Prevent concurrent pipeline runs (CI equivalent of PID file)
+concurrency:
+  group: daily-briefing-pipeline
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: '1'
+  DATABASE_PATH: './data/briefing.db'
+  TIMEZONE: 'Asia/Kolkata'
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 1. Checkout main branch (source code)
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      # 2. Restore SQLite database from db-state branch
+      - name: Restore database
+        run: |
+          git fetch origin db-state --depth=1 || echo "No db-state branch yet"
+          mkdir -p data
+          if git show origin/db-state:briefing.db > data/briefing.db 2>/dev/null; then
+            echo "Database restored ($(du -h data/briefing.db | cut -f1))"
+          else
+            echo "No existing database found. Will initialize fresh."
+          fi
+
+      # 3. Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 5. Initialize DB schema if needed (handles first-run or empty DB)
+      - name: Initialize database
+        run: python -m src.cli init-db
+
+      # 6. Fetch content
+      - name: Fetch content
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          SINCE_DATE="${{ github.event.inputs.since_date }}"
+          if [ -z "$SINCE_DATE" ]; then
+            SINCE_DATE=$(date -d 'yesterday' +%Y-%m-%d)
+          fi
+          echo "Fetching content since $SINCE_DATE"
+          python -m src.cli fetch --all --since "$SINCE_DATE" || echo "::warning::Fetch had partial failures"
+
+      # 7. Process pending items through LLM
+      - name: Process pending items
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python -m src.cli process --all --delay 3 || echo "::warning::Process had partial failures"
+
+      # 8. Compose and send briefing email
+      - name: Send briefing
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python -m src.cli send-briefing
+
+      # 9. Print stats for the run log
+      - name: Print stats
+        if: always()
+        run: python -m src.cli stats || true
+
+      # 10. Persist updated database back to db-state branch
+      - name: Persist database
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save the DB file outside the working tree
+          cp data/briefing.db /tmp/briefing.db
+
+          # Create a fresh orphan branch (no history)
+          git checkout --orphan db-state-temp
+          git rm -rf . 2>/dev/null || true
+
+          # Add only the database file
+          cp /tmp/briefing.db briefing.db
+          git add -f briefing.db
+          git commit -m "DB state: $(date -u +%Y-%m-%d-%H%M)" || echo "No DB changes to commit"
+
+          # Force push to db-state (single commit, no history accumulation)
+          git push origin HEAD:db-state --force
+
+      # 11. Upload HTML briefing backup as artifact
+      - name: Upload briefing HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: briefing-html-${{ github.run_id }}
+          path: data/briefing_*.html
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # 12. Send failure alert email if pipeline failed
+      - name: Notify on failure
+        if: failure()
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          python3 -c "
+          import smtplib, os
+          from email.mime.text import MIMEText
+          msg = MIMEText('The daily briefing pipeline failed.\n\nCheck: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}')
+          msg['Subject'] = 'ALERT: Daily Briefing Pipeline Failed'
+          msg['From'] = os.environ['SMTP_USER']
+          msg['To'] = os.environ['EMAIL_TO'].split(',')[0]
+          with smtplib.SMTP('smtp.gmail.com', 587, timeout=30) as s:
+              s.starttls()
+              s.login(os.environ['SMTP_USER'], os.environ['SMTP_APP_PASSWORD'])
+              s.sendmail(os.environ['SMTP_USER'], [msg['To']], msg.as_string())
+          print('Failure notification sent')
+          "
