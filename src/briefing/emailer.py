@@ -504,7 +504,7 @@ class Emailer:
             msg["Subject"] = subject
             msg.attach(MIMEText(email_html, "html"))
 
-            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
                 server.starttls()
                 server.login(self.smtp_user, self.smtp_password)
                 server.sendmail(self.smtp_user, self.to_emails, msg.as_string())

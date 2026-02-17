@@ -102,8 +102,8 @@ class LLMClient:
         """
         Send a prompt to the LLM with automatic fallback.
 
-        Tries the primary provider first. If it fails (rate limit, error),
-        falls back to the secondary provider.
+        Tries the primary provider first. If it fails (rate limit, timeout,
+        or other error), falls back to the secondary provider.
 
         Args:
             prompt: The full prompt text
@@ -111,27 +111,52 @@ class LLMClient:
 
         Returns:
             Parsed JSON dict, or None if all providers fail
+
+        Raises:
+            LLMTimeoutError or APITimeoutError: If BOTH providers time out.
+                Re-raised so the Summarizer can leave the item as pending
+                for retry later.
         """
+        from .gemini_client import LLMTimeoutError
+        from openai import APITimeoutError
+
+        primary_timed_out = False
+
         # Try primary
-        result = self._primary.generate(prompt, max_retries=max_retries)
+        try:
+            result = self._primary.generate(prompt, max_retries=max_retries)
+            if result is not None:
+                return result
+        except (LLMTimeoutError, APITimeoutError) as e:
+            print(f"  Primary ({self._active_provider_name}) timed out: {e}")
+            primary_timed_out = True
 
-        if result is not None:
-            return result
-
-        # Primary failed — try fallback
+        # Primary failed (or timed out) — try fallback
         if self._fallback is not None:
             fallback_name = "openai" if self._active_provider_name == "gemini" else "gemini"
-            print(f"  Primary ({self._active_provider_name}) failed → falling back to {fallback_name}")
+            reason = "timed out" if primary_timed_out else "failed"
+            print(f"  Primary ({self._active_provider_name}) {reason} → falling back to {fallback_name}")
             self._active_provider_name = fallback_name
 
-            result = self._fallback.generate(prompt, max_retries=max_retries)
+            try:
+                result = self._fallback.generate(prompt, max_retries=max_retries)
+            except (LLMTimeoutError, APITimeoutError):
+                # Both providers timed out — re-raise so item stays pending
+                print(f"  Fallback ({fallback_name}) also timed out")
+                raise
 
             if result is not None:
                 # Fallback worked — swap it to primary for remaining items
-                # to avoid hammering the rate-limited provider
+                # to avoid hammering the rate-limited/timed-out provider
                 print(f"  Switching to {fallback_name} for remaining items")
                 self._primary, self._fallback = self._fallback, self._primary
                 return result
+
+        # If primary timed out and there's no fallback, re-raise
+        if primary_timed_out:
+            raise LLMTimeoutError(
+                f"LLM call timed out and no fallback provider available"
+            )
 
         return None
 

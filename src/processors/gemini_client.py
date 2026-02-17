@@ -3,16 +3,37 @@ Gemini API client wrapper.
 
 Uses the google.genai SDK (the current, supported library).
 Handles communication with Google's Gemini API, including
-rate limiting, retries, and response parsing.
+rate limiting, retries, timeout protection, and response parsing.
 """
+
+from __future__ import annotations
 
 import os
 import json
 import time
+import signal
 from typing import Optional
 
 from google import genai
 from google.genai import types
+
+
+# Per-request timeout for LLM API calls (seconds).
+# Prevents the pipeline from hanging indefinitely on a single request.
+# 120s is generous — most calls complete in 10-30s even for long transcripts.
+REQUEST_TIMEOUT_SECONDS = 120
+
+
+class LLMTimeoutError(Exception):
+    """Raised when an LLM API call exceeds REQUEST_TIMEOUT_SECONDS."""
+    pass
+
+
+def _timeout_handler(signum, frame):
+    """Signal handler that raises LLMTimeoutError on SIGALRM."""
+    raise LLMTimeoutError(
+        f"Gemini API call timed out after {REQUEST_TIMEOUT_SECONDS}s"
+    )
 
 
 class GeminiClient:
@@ -60,15 +81,26 @@ class GeminiClient:
         """
         for attempt in range(max_retries):
             try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.3,
-                        max_output_tokens=4096,
-                        response_mime_type="application/json",
-                    ),
-                )
+                # Set a per-request timeout using SIGALRM to prevent hangs.
+                # This is critical: without it, a single stuck API call can
+                # block the entire pipeline for hours (happened 2026-02-17
+                # on a 19,600-word transcript).
+                old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+                signal.alarm(REQUEST_TIMEOUT_SECONDS)
+                try:
+                    response = self.client.models.generate_content(
+                        model=self.model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.3,
+                            max_output_tokens=4096,
+                            response_mime_type="application/json",
+                        ),
+                    )
+                finally:
+                    # Always cancel the alarm and restore the old handler
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
 
                 # Parse the JSON response
                 text = response.text.strip()
@@ -89,6 +121,12 @@ class GeminiClient:
                 print(f"  JSON parse error (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
+
+            except LLMTimeoutError as e:
+                print(f"  TIMEOUT (attempt {attempt + 1}/{max_retries}): {e}")
+                # Don't retry timeouts — they'll likely time out again.
+                # Let the caller (LLMClient) fall back to OpenAI instead.
+                raise
 
             except Exception as e:
                 error_str = str(e).lower()

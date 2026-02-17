@@ -107,8 +107,21 @@ class Summarizer:
             prompt = build_summarization_prompt(item)
             item.transcript = original_transcript  # Restore original
 
-        # Send to Gemini
-        result = self.client.generate(prompt)
+        # Send to LLM (with timeout protection)
+        try:
+            result = self.client.generate(prompt)
+        except Exception as e:
+            # Check if this is a timeout error from either provider
+            error_name = type(e).__name__
+            if "Timeout" in error_name:
+                print(f"  TIMEOUT: {item.title} ({item.word_count} words) — "
+                      f"LLM call exceeded time limit. Item stays pending for retry.")
+                # Do NOT mark as failed — leave as pending so it can be retried later
+                return None
+            # Non-timeout exceptions: mark as failed
+            print(f"  Failed (unexpected error: {e}): {item.title}")
+            self.db.update_content_status(item.id, "failed")
+            return None
 
         if result is None:
             print(f"  Failed (API error): {item.title}")

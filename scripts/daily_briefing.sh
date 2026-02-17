@@ -41,6 +41,9 @@ TODAY=$(date +%Y-%m-%d)
 YESTERDAY=$(date -v-1d +%Y-%m-%d)
 LOG_FILE="${LOG_DIR}/briefing_${TODAY}.log"
 
+# PID file to prevent overlapping pipeline instances
+PID_FILE="${LOG_DIR}/pipeline.pid"
+
 # Ensure unbuffered Python output for real-time logging
 export PYTHONUNBUFFERED=1
 
@@ -58,8 +61,34 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
+# ---------------------------------------------------------------------------
+# PID file — prevent overlapping pipeline instances
+# ---------------------------------------------------------------------------
+# launchd kills the shell script after its timeout, but child Python processes
+# may keep running. The next morning's pipeline would start while yesterday's
+# Python process is still alive, causing SQLite SQLITE_BUSY errors.
+
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE" 2>/dev/null)
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        log "WARNING: Killing stale pipeline process (PID: ${OLD_PID}) from previous run"
+        # Kill the process group (parent + children) to clean up lingering Python processes
+        pkill -P "$OLD_PID" 2>/dev/null
+        kill "$OLD_PID" 2>/dev/null
+        sleep 2
+    else
+        log "Removing stale PID file (process ${OLD_PID} no longer running)"
+    fi
+    rm -f "$PID_FILE"
+fi
+
+echo $$ > "$PID_FILE"
+
+# Remove PID file on any exit (success, failure, or signal)
+trap 'rm -f "$PID_FILE"' EXIT
+
 log "=============================================="
-log "Daily Briefing Pipeline — Starting"
+log "Daily Briefing Pipeline — Starting (PID: $$)"
 log "  Project: ${PROJECT_DIR}"
 log "  Date:    ${TODAY}"
 log "  Since:   ${YESTERDAY}"
@@ -87,7 +116,7 @@ cd "${PROJECT_DIR}" || {
 # Verify .env exists (python-dotenv loads it, but let's catch it early)
 if [ ! -f ".env" ]; then
     log "ERROR: .env file not found at ${PROJECT_DIR}/.env"
-    log "       Required keys: GEMINI_API_KEY, OPENAI_API_KEY, RESEND_API_KEY, EMAIL_TO, YOUTUBE_API_KEY"
+    log "       Required keys: GEMINI_API_KEY, OPENAI_API_KEY, SMTP_USER, SMTP_APP_PASSWORD, EMAIL_FROM, EMAIL_TO, YOUTUBE_API_KEY"
     exit 1
 fi
 
@@ -149,6 +178,11 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Cleanup — remove old logs (keep 30 days)
+# ---------------------------------------------------------------------------
+find "${LOG_DIR}" -name "briefing_*.log" -mtime +30 -delete 2>/dev/null
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 log ""
@@ -166,8 +200,12 @@ python -m src.cli stats
 
 if [ "${PIPELINE_OK}" = true ]; then
     log "Pipeline finished successfully."
+    # macOS notification — success (subtle, no sound)
+    osascript -e 'display notification "Briefing sent successfully." with title "Daily Briefing"' 2>/dev/null || true
     exit 0
 else
     log "Pipeline finished with warnings/errors. Check log: ${LOG_FILE}"
+    # macOS notification — failure (audible alert)
+    osascript -e 'display notification "Check log for details. Fetch: '"${FETCH_STATUS}"', Process: '"${PROCESS_STATUS}"', Send: '"${SEND_STATUS}"'" with title "Daily Briefing Failed" sound name "Basso"' 2>/dev/null || true
     exit 1
 fi

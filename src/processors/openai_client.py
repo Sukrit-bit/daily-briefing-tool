@@ -2,17 +2,25 @@
 OpenAI API client wrapper.
 
 Handles communication with OpenAI's API (GPT-4o),
-including rate limiting, retries, and response parsing.
+including rate limiting, retries, timeout protection,
+and response parsing.
 
 Used as a fallback when Gemini is rate-limited.
 """
+
+from __future__ import annotations
 
 import os
 import json
 import time
 from typing import Optional
 
-from openai import OpenAI
+import httpx
+from openai import OpenAI, APITimeoutError
+
+# Per-request timeout for LLM API calls (seconds).
+# Prevents the pipeline from hanging indefinitely on a single request.
+REQUEST_TIMEOUT_SECONDS = 120
 
 
 class OpenAIClient:
@@ -41,7 +49,10 @@ class OpenAIClient:
             )
 
         self.model_name = model
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = OpenAI(
+            api_key=self.api_key,
+            timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=10.0),
+        )
 
     def generate(self, prompt: str, max_retries: int = 3) -> Optional[dict]:
         """
@@ -91,6 +102,12 @@ class OpenAIClient:
                 print(f"  JSON parse error (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
+
+            except APITimeoutError as e:
+                print(f"  TIMEOUT (attempt {attempt + 1}/{max_retries}): OpenAI API call timed out after {REQUEST_TIMEOUT_SECONDS}s")
+                # Don't retry timeouts — they'll likely time out again.
+                # Re-raise so the caller (LLMClient/Summarizer) can handle it.
+                raise
 
             except Exception as e:
                 error_str = str(e).lower()

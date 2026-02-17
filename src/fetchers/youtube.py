@@ -15,6 +15,7 @@ Supports three video discovery strategies (in priority order):
 import os
 import re
 import json
+import signal
 import time
 import requests
 from datetime import datetime, date
@@ -33,6 +34,10 @@ from ..storage.models import ContentItem, Source
 
 # YouTube Data API v3 base URL
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+
+# Timeout for transcript fetch operations (seconds).
+# Prevents the pipeline from hanging if YouTube is slow or partially responding.
+TRANSCRIPT_TIMEOUT_SECONDS = 60
 
 
 class YouTubeFetcher(BaseFetcher):
@@ -732,6 +737,18 @@ class YouTubeFetcher(BaseFetcher):
             print(f"Could not extract video ID from: {item.url}")
             return None
 
+        # Set a timeout for the entire transcript fetch to prevent hanging
+        # if YouTube is slow or partially responding. signal.alarm() only
+        # works in the main thread on Unix, which is fine — this pipeline
+        # is single-threaded.
+        old_handler = signal.signal(
+            signal.SIGALRM,
+            lambda signum, frame: (_ for _ in ()).throw(
+                TimeoutError("Transcript fetch timed out")
+            ),
+        )
+        signal.alarm(TRANSCRIPT_TIMEOUT_SECONDS)
+
         try:
             # youtube-transcript-api v1.x: instantiate, then fetch
             api = YouTubeTranscriptApi()
@@ -766,6 +783,9 @@ class YouTubeFetcher(BaseFetcher):
 
             return full_text
 
+        except TimeoutError:
+            print(f"  Transcript fetch timed out ({TRANSCRIPT_TIMEOUT_SECONDS}s): {item.title}")
+            return None
         except TranscriptsDisabled:
             print(f"Transcripts disabled for: {item.title}")
             return None
@@ -778,6 +798,9 @@ class YouTubeFetcher(BaseFetcher):
         except Exception as e:
             print(f"Transcript error for {item.title}: {e}")
             return None
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
 
     def _extract_video_id(self, url: str) -> Optional[str]:
         """Extract video ID from YouTube URL."""
