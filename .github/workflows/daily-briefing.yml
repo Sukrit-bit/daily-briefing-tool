@@ -11,6 +11,11 @@ on:
         description: 'Override --since date (YYYY-MM-DD). Leave empty for yesterday.'
         required: false
         type: string
+      test_mode:
+        description: 'Send email only to repo owner (not all recipients)'
+        required: false
+        type: boolean
+        default: true
 
 # Prevent concurrent pipeline runs (CI equivalent of PID file)
 concurrency:
@@ -21,6 +26,7 @@ env:
   PYTHONUNBUFFERED: '1'
   DATABASE_PATH: './data/briefing.db'
   TIMEZONE: 'Asia/Kolkata'
+  TEST_MODE_EMAIL: 'sukrit.mukherjee@live.com'
 
 permissions:
   contents: write  # Required to push to db-state branch
@@ -31,6 +37,21 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # 0. Resolve EMAIL_TO: test mode sends only to repo owner
+      - name: Resolve email recipients
+        id: email
+        env:
+          FULL_EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          IS_TEST: ${{ github.event.inputs.test_mode }}
+        run: |
+          if [ "$IS_TEST" = "true" ]; then
+            echo "EFFECTIVE_EMAIL_TO=$TEST_MODE_EMAIL" >> "$GITHUB_OUTPUT"
+            echo "Test mode: sending only to $TEST_MODE_EMAIL"
+          else
+            echo "EFFECTIVE_EMAIL_TO=$FULL_EMAIL_TO" >> "$GITHUB_OUTPUT"
+            echo "Production mode: sending to all recipients"
+          fi
+
       # 1. Checkout main branch (source code)
       - name: Checkout main
         uses: actions/checkout@v4
@@ -70,7 +91,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_TO: ${{ steps.email.outputs.EFFECTIVE_EMAIL_TO }}
           INPUT_SINCE_DATE: ${{ github.event.inputs.since_date }}
         run: |
           if [ -z "$INPUT_SINCE_DATE" ]; then
@@ -96,7 +117,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_TO: ${{ steps.email.outputs.EFFECTIVE_EMAIL_TO }}
         run: python -m src.cli send-briefing
 
       # 9. Print stats for the run log
@@ -142,7 +163,7 @@ jobs:
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_TO: ${{ steps.email.outputs.EFFECTIVE_EMAIL_TO }}
         run: |
           python3 -c "
           import smtplib, os
