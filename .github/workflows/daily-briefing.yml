@@ -22,6 +22,9 @@ env:
   DATABASE_PATH: './data/briefing.db'
   TIMEZONE: 'Asia/Kolkata'
 
+permissions:
+  contents: write  # Required to push to db-state branch
+
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
@@ -68,10 +71,12 @@ jobs:
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          INPUT_SINCE_DATE: ${{ github.event.inputs.since_date }}
         run: |
-          SINCE_DATE="${{ github.event.inputs.since_date }}"
-          if [ -z "$SINCE_DATE" ]; then
+          if [ -z "$INPUT_SINCE_DATE" ]; then
             SINCE_DATE=$(date -d 'yesterday' +%Y-%m-%d)
+          else
+            SINCE_DATE="$INPUT_SINCE_DATE"
           fi
           echo "Fetching content since $SINCE_DATE"
           python -m src.cli fetch --all --since "$SINCE_DATE" || echo "::warning::Fetch had partial failures"
