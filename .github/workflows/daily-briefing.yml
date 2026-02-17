@@ -56,13 +56,18 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v4
 
-      # 2. Restore SQLite database from db-state branch
+      # 2. Restore SQLite database from db-state branch (encrypted at rest)
       - name: Restore database
+        env:
+          DB_ENCRYPTION_KEY: ${{ secrets.DB_ENCRYPTION_KEY }}
         run: |
           git fetch origin db-state --depth=1 || echo "No db-state branch yet"
           mkdir -p data
-          if git show origin/db-state:briefing.db > data/briefing.db 2>/dev/null; then
-            echo "Database restored ($(du -h data/briefing.db | cut -f1))"
+          if git show origin/db-state:briefing.db.gpg > /tmp/briefing.db.gpg 2>/dev/null; then
+            echo "$DB_ENCRYPTION_KEY" | gpg --batch --yes --passphrase-fd 0 --decrypt -o data/briefing.db /tmp/briefing.db.gpg
+            echo "Database restored and decrypted ($(du -h data/briefing.db | cut -f1))"
+          elif git show origin/db-state:briefing.db > data/briefing.db 2>/dev/null; then
+            echo "Legacy unencrypted database restored ($(du -h data/briefing.db | cut -f1))"
           else
             echo "No existing database found. Will initialize fresh."
           fi
@@ -125,23 +130,25 @@ jobs:
         if: always()
         run: python -m src.cli stats || true
 
-      # 10. Persist updated database back to db-state branch
+      # 10. Persist updated database back to db-state branch (encrypted)
       - name: Persist database
         if: always()
+        env:
+          DB_ENCRYPTION_KEY: ${{ secrets.DB_ENCRYPTION_KEY }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Save the DB file outside the working tree
-          cp data/briefing.db /tmp/briefing.db
+          # Encrypt the DB file before storing
+          echo "$DB_ENCRYPTION_KEY" | gpg --batch --yes --passphrase-fd 0 --symmetric --cipher-algo AES256 -o /tmp/briefing.db.gpg data/briefing.db
 
           # Create a fresh orphan branch (no history)
           git checkout --orphan db-state-temp
           git rm -rf . 2>/dev/null || true
 
-          # Add only the database file
-          cp /tmp/briefing.db briefing.db
-          git add -f briefing.db
+          # Add only the encrypted database file
+          cp /tmp/briefing.db.gpg briefing.db.gpg
+          git add -f briefing.db.gpg
           git commit -m "DB state: $(date -u +%Y-%m-%d-%H%M)" || echo "No DB changes to commit"
 
           # Force push to db-state (single commit, no history accumulation)

@@ -9,6 +9,9 @@ FORSUKRIT.md
 learnings_for_Sukrit.md
 daily-briefing-tool_HANDOVER_*.md
 
+# Local macOS automation config (contains machine-specific paths)
+com.sukrit.daily-briefing.plist
+
 # Database
 data/*.db
 data/*.db-journal
