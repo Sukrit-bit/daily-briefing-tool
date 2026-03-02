@@ -8,7 +8,7 @@ produced each summary, enabling quality comparison over time.
 from ..storage.models import ContentItem
 
 
-PROMPT_VERSION = "v5.0"
+PROMPT_VERSION = "v5.1"
 
 
 # Shared blacklist: phrases the LLM must avoid. Used in both the prompt
@@ -147,6 +147,8 @@ OUTPUT:
    - BANNED PATTERN: "If you're [doing X], you're [doing it wrong]." — never use this.
    - BANNED PATTERN: Any "If you..." / "If your..." conditional opening. This is a crutch. Ban it entirely.
    - BANNED PATTERN: "For [audience], this means..." — too generic.
+   - BANNED PATTERN: "This reshapes how [X] works because..." — overused. Use a different structure.
+   - BANNED PATTERN: "This signals a shift in..." — too vague. Name the specific shift and who it affects.
    Use a DIFFERENT so_what style for each item. Here are 6 styles — rotate through them:
    1. Direct imperative: "Stop X. Start Y." / "Rip out your X layer and replace it with Y."
    2. Market signal: "This signals that [specific market shift]. Watch [ticker/company]." / "This is the canary in the coal mine for..."
@@ -160,6 +162,9 @@ OUTPUT:
 
    GOOD tags: "vibe-coding", "GPU-capex", "MSFT", "solo-builders", "compute-infrastructure", "personal-agents", "SaaS-commoditization", "org-design", "founder-mode"
    BAD tags: "ai", "strategy", "startups", "technology", "business", "innovation"
+   ALSO BAD (still too generic): "design-evolution", "ai-integration", "workforce-evolution", "engineering-collaboration", "ai-skills", "ai-content"
+   These read like database categories. Be specific: "Claude-design-team", "designer-to-engineer", "mockup-death", "skills-expiry"
+   Keep tags SHORT — 1-2 words preferred, 3 max.
 
    Think: what would make a startup founder & tech investor's eyes light up or skip? Use lowercase-with-hyphens format.
 
@@ -233,6 +238,11 @@ Rules:
 - Write in the same sharp, opinionated voice as the rest of the briefing.
 - Do NOT list the items. Synthesize.
 - NEVER use: "Today's briefing covers..." or "In today's edition..."
+- NEVER write motivational-poster synthesis like "The AI era isn't just about X; it's a relentless exercise in Y." That's LinkedIn, not analysis.
+- NEVER write "today's stories reveal a singular truth" or similar grandiose framing.
+- Reference a SPECIFIC item or tension, not abstract themes.
+- GOOD: "Three items about agents eating SaaS, one about why they shouldn't — the tension is the story."
+- BAD: "From the classroom to the codebase, today's stories reveal a singular truth: the old ways are outdated."
 
 Today's {len(item_summaries)} items:
 {items_text}
