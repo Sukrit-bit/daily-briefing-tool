@@ -109,12 +109,14 @@ def _content_type_label(content_category: str) -> str:
 
 
 def _concepts_html(concepts: list) -> str:
-    """Generate HTML for concepts_explained (Deep Dive only)."""
+    """Generate HTML for concepts_explained (Deep Dive only, max 2)."""
     if not concepts:
         return ""
     items_html = ""
     for c in concepts[:2]:
-        items_html += f'<p style="margin:4px 0;font-size:13px;color:#334155;line-height:1.4;"><strong>{c.term}:</strong> {c.explanation}</p>'
+        term = html.escape(c.term)
+        explanation = html.escape(c.explanation)
+        items_html += f'<p style="margin:4px 0;font-size:13px;color:#334155;line-height:1.4;"><strong>{term}:</strong> {explanation}</p>'
     return f'<div style="margin-top:8px;padding:8px 10px;background:#f8fafc;border-radius:6px;">{items_html}</div>'
 
 
@@ -142,7 +144,7 @@ def _topic_tag_pills(domains: list[str]) -> str:
 
 
 def _so_what_inline(so_what: str) -> str:
-    """Generate a compact inline so-what for summary_sufficient cards."""
+    """Generate a compact inline so-what for Worth a Look and Summary Sufficient cards."""
     if not so_what:
         return ""
     so_what_text = _truncate_sentences(so_what, 2)
@@ -218,12 +220,17 @@ def generate_briefing_html(
         </div>
         """
 
-    # Estimate read time — per-item overhead + word-based reading time
+    # Estimate read time — count words actually rendered per tier
     total_words = 0
     for item in items:
         p = item["processed"]
-        total_words += len(p.core_summary.split())
-        total_words += sum(len(ins.split()) for ins in p.key_insights[:3])
+        if p.tier == "deep_dive":
+            total_words += len(p.core_summary.split())
+            total_words += sum(len(ins.split()) for ins in p.key_insights[:3])
+        elif p.tier == "worth_a_look":
+            total_words += len(p.core_summary.split())
+            total_words += sum(len(ins.split()) for ins in p.key_insights[:2])
+        # summary_sufficient: only so_what is shown
         if p.so_what:
             total_words += len(p.so_what.split())
     overhead_seconds = len(items) * 15  # ~15s per item for scanning title, meta, context-switching
@@ -253,7 +260,7 @@ def generate_briefing_html(
             </p>
             """
 
-    # Editorial intro (between headline index and detail cards)
+    # Editorial intro (inside header card)
     editorial_html = ""
     if editorial_intro:
         editorial_html = f"""
