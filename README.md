@@ -11,16 +11,22 @@ This was built entirely using [Claude Code](https://claude.ai/claude-code) over 
 Every morning, I get an email where the three tiers don't just contain different amounts of text — they *look* different. You know in one glance whether something needs 30 seconds or 30 minutes.
 
 <p align="center">
-  <img src="docs/briefing-header.png" alt="Briefing header card with tier count badges, content type labels, and editorial intro" width="550">
+  <img src="docs/briefing-header.png" alt="Briefing header card with tier count badges and editorial intro, followed by a Deep Dive card with full summary, insights, so-what callout, and concepts explained" width="550">
 </p>
 
-A compact header shows how many items at each tier, an editorial intro that synthesizes the day's themes, and content type badges (Interview, Market Call, Analysis) so I know what I'm getting before I scroll.
+A compact header shows how many items at each tier, an editorial intro that connects the day's themes, and content type badges (Interview, Market Call, Analysis). **Deep Dives** get the richest treatment — summary, key insights, a "so what" callout, concepts explained, and a link with duration.
 
 <p align="center">
-  <img src="docs/briefing-cards.png" alt="Three distinct card layouts — Deep Dive with full insights and concepts, Worth a Look with summary and take, Summary Sufficient with just a one-liner" width="550">
+  <img src="docs/briefing-cards-worthalook.png" alt="Worth a Look cards with summary, two insights, inline take, and action links — lighter visual weight than Deep Dives" width="550">
 </p>
 
-**Deep Dives** get the full treatment — summary, three key insights, a "so what" callout, concepts explained, and a link to the original. **Worth a Look** items get a tighter summary, a couple of insights, and an opinionated take. **Summary Sufficient** items are just a title, source, and one italic line — because the whole point is that you don't need more.
+**Worth a Look** items are visually lighter — shorter summary, fewer insights, an inline take instead of a callout box. The yellow border and white background signal "solid, but the summary captures most of it."
+
+<p align="center">
+  <img src="docs/briefing-cards-summary.png" alt="Summary Sufficient items as a compact list with just title, source, and one-line take — no links, no summary text" width="550">
+</p>
+
+**Summary Sufficient** items are just a title, source, and one italic take — no summary, no insights, no link. The take *is* the value. The missing link is the product saying: "You're done. Move on."
 
 This saves me hours per week. Not because it summarizes everything, but because it tells me what to skip.
 
