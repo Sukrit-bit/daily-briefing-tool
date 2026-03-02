@@ -366,3 +366,64 @@ class TestEvergreenBadge:
         html = generate_briefing_html(briefing, items)
         assert "#0d9488" in html
         assert "#f0fdfa" in html
+
+
+class TestWorthALookBorderWidth:
+    """Test 11: Worth a Look border is 3px, not 4px."""
+
+    def test_border_is_3px(self):
+        items = [
+            {
+                "content": _make_content(id="wal1"),
+                "processed": _make_processed(content_id="wal1", tier="worth_a_look"),
+            },
+        ]
+        briefing = _make_briefing(total_count=1, item_ids=["wal1"])
+        html = generate_briefing_html(briefing, items)
+        assert "border-left:3px solid #eab308" in html
+        assert "border-left:4px solid #eab308" not in html
+
+
+class TestSummarySufficientNoLink:
+    """Test 12: Summary Sufficient titles are plain text, not clickable links."""
+
+    def test_no_anchor_tag_in_title(self):
+        items = [
+            {
+                "content": _make_content(id="ss1", title="Plain Title Item"),
+                "processed": _make_processed(content_id="ss1", tier="summary_sufficient"),
+            },
+        ]
+        briefing = _make_briefing(total_count=1, item_ids=["ss1"])
+        html = generate_briefing_html(briefing, items)
+        # The title text should appear, but not wrapped in an <a> tag
+        assert "Plain Title Item" in html
+        # Extract only the summary_sufficient section (after the section heading)
+        ss_start = html.find("Summary Sufficient")
+        assert ss_start != -1
+        ss_section = html[ss_start:]
+        assert "<a href" not in ss_section
+
+
+class TestSummarySufficientNoTopicTags:
+    """Test 13: Summary Sufficient cards do not display topic tag pills."""
+
+    def test_no_topic_tag_pills(self):
+        items = [
+            {
+                "content": _make_content(id="ss1"),
+                "processed": _make_processed(
+                    content_id="ss1",
+                    tier="summary_sufficient",
+                    domains=["AI", "scaling", "compute"],
+                ),
+            },
+        ]
+        briefing = _make_briefing(total_count=1, item_ids=["ss1"])
+        html = generate_briefing_html(briefing, items)
+        # Extract the summary_sufficient section
+        ss_start = html.find("Summary Sufficient")
+        assert ss_start != -1
+        ss_section = html[ss_start:]
+        # Topic tag pill styling should not appear in this section
+        assert "border-radius:3px;font-size:10px;background:#f1f5f9" not in ss_section

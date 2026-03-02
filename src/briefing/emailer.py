@@ -192,7 +192,7 @@ def generate_briefing_html(
     if worth_a_look:
         sections_html += _build_tier_section(
             "🟡 Worth a Look", "Summary captures most of it", worth_a_look,
-            detail_level="medium", accent_border="#eab308",
+            detail_level="medium", accent_border="#eab308", border_width=3,
         )
 
     if summary_sufficient:
@@ -301,7 +301,7 @@ def generate_briefing_html(
 
 def _build_tier_section(
     title: str, subtitle: str, items: list[dict], detail_level: str = "full",
-    bg_color: str = "white", accent_border: str = "",
+    bg_color: str = "white", accent_border: str = "", border_width: int = 4,
 ) -> str:
     """
     Build HTML for a tier section with distinct layouts per tier.
@@ -322,7 +322,7 @@ def _build_tier_section(
         <p style="margin:0 0 12px 0;font-size:12px;color:#94a3b8;">{subtitle}</p>
     """
     else:
-        border_style = f"border-left:4px solid {accent_border};" if accent_border else ""
+        border_style = f"border-left:{border_width}px solid {accent_border};" if accent_border else ""
         section_html = f"""
     <div style="background:{bg_color};border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);{border_style}">
         <h2 style="margin:0 0 2px 0;font-size:16px;color:#0f172a;">{title}</h2>
