@@ -8,21 +8,21 @@ This was built entirely using [Claude Code](https://claude.ai/claude-code) over 
 
 ## What It Actually Does
 
-Every morning, I get an email with two layers:
-
-**Layer 1 — Headline Index (30-second scan).** Tier indicators, titles, sources, lengths, and topic tags. I scan this over coffee and already know what kind of day it is.
+Every morning, I get an email where the three tiers don't just contain different amounts of text — they *look* different. You know in one glance whether something needs 30 seconds or 30 minutes.
 
 <p align="center">
-  <img src="docs/briefing-headline-index.png" alt="Briefing headline index showing 12 items with tier emojis, topic tags, and editorial intro" width="550">
+  <img src="docs/briefing-header.png" alt="Briefing header card with tier count badges, content type labels, and editorial intro" width="550">
 </p>
 
-**Layer 2 — Detail Cards (5-minute read).** Summaries, key insights, and opinionated "so what" takes — tiered by how much value the original adds beyond the summary.
+A compact header shows how many items at each tier, an editorial intro that synthesizes the day's themes, and content type badges (Interview, Market Call, Analysis) so I know what I'm getting before I scroll.
 
 <p align="center">
-  <img src="docs/briefing-detail-cards.png" alt="Detail cards showing deep dive summaries with insights, so-what boxes, and watch links" width="550">
+  <img src="docs/briefing-cards.png" alt="Three distinct card layouts — Deep Dive with full insights and concepts, Worth a Look with summary and take, Summary Sufficient with just a one-liner" width="550">
 </p>
 
-The tier system is the core product decision: not everything deserves the same attention. A **Deep Dive** means "the summary only captures half the value — go watch/read the original." A **Summary Sufficient** means "you've got the gist, move on." This saves me hours per week.
+**Deep Dives** get the full treatment — summary, three key insights, a "so what" callout, concepts explained, and a link to the original. **Worth a Look** items get a tighter summary, a couple of insights, and an opinionated take. **Summary Sufficient** items are just a title, source, and one italic line — because the whole point is that you don't need more.
+
+This saves me hours per week. Not because it summarizes everything, but because it tells me what to skip.
 
 ## The Product Decisions That Matter
 
@@ -43,7 +43,7 @@ fetch → process → compose → send-briefing
 1. **Fetch** — YouTube Data API discovers videos, transcripts are extracted, RSS feeds are parsed. Everything goes into SQLite.
 2. **Process** — Each item hits Gemini 2.5 Flash (with OpenAI GPT-4o as automatic fallback). The prompt enforces a specific voice, variety rules, and structural constraints. Post-processing applies blacklist enforcement and signal-based tier calibration.
 3. **Compose** — Selects ~15 items (18 hard cap) with source diversity, deep dive ceiling (max 3), priority ordering, and fresh/backlog mixing.
-4. **Send** — Generates an editorial intro, composes a two-layer HTML email, sends via Gmail SMTP to multiple recipients, saves a backup.
+4. **Send** — Generates an editorial intro, composes a tier-differentiated HTML email, sends via Gmail SMTP to multiple recipients, saves a backup.
 
 ## Results
 

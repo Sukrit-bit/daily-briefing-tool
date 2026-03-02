@@ -1,6 +1,6 @@
-# The Summarization Prompt (v5.0)
+# The Summarization Prompt (v5.1)
 
-This is the exact prompt sent to the LLM (Gemini 2.5 Flash, with OpenAI GPT-4o as fallback) for every content item. It's the most iterated piece of the system — five major versions across ten sessions.
+This is the exact prompt sent to the LLM (Gemini 2.5 Flash, with OpenAI GPT-4o as fallback) for every content item. It's the most iterated piece of the system — five major versions across eleven sessions.
 
 The prompt is stored in `src/processors/prompts.py` and reproduced here for visibility.
 
