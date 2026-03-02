@@ -2,9 +2,8 @@
 Email generation and delivery for daily briefings.
 
 Generates HTML email from briefing data and sends via Gmail SMTP.
-The email is optimized for a 5-10 minute morning scan:
-- Layer 1: Glanceable headline index (30 seconds)
-- Layer 2: Compact summary cards (5 minutes)
+The email is optimized for a 5-10 minute morning scan with three
+distinct card layouts per tier (Deep Dive, Worth a Look, Summary Sufficient).
 """
 from __future__ import annotations
 
@@ -93,6 +92,34 @@ def _action_link(content) -> str:
     return "Read"
 
 
+_CONTENT_TYPE_LABELS = {
+    "interview": "Interview",
+    "market_call": "Market Call",
+    "news_analysis": "Analysis",
+    "industry_trend": "Trend",
+    "framework": "Framework",
+    "tutorial": "Tutorial",
+    "commentary": "Commentary",
+}
+
+
+def _content_type_label(content_category: str) -> str:
+    """Get human-readable label for content type."""
+    return _CONTENT_TYPE_LABELS.get(content_category, "")
+
+
+def _concepts_html(concepts: list) -> str:
+    """Generate HTML for concepts_explained (Deep Dive only, max 2)."""
+    if not concepts:
+        return ""
+    items_html = ""
+    for c in concepts[:2]:
+        term = html.escape(c.term)
+        explanation = html.escape(c.explanation)
+        items_html += f'<p style="margin:4px 0;font-size:13px;color:#334155;line-height:1.4;"><strong>{term}:</strong> {explanation}</p>'
+    return f'<div style="margin-top:8px;padding:8px 10px;background:#f8fafc;border-radius:6px;">{items_html}</div>'
+
+
 def _so_what_box(so_what: str) -> str:
     """Generate the blue so-what box HTML."""
     if not so_what:
@@ -117,7 +144,7 @@ def _topic_tag_pills(domains: list[str]) -> str:
 
 
 def _so_what_inline(so_what: str) -> str:
-    """Generate a compact inline so-what for summary_sufficient cards."""
+    """Generate a compact inline so-what for Worth a Look and Summary Sufficient cards."""
     if not so_what:
         return ""
     so_what_text = _truncate_sentences(so_what, 2)
@@ -155,41 +182,7 @@ def generate_briefing_html(
         else:
             summary_sufficient.append(item)
 
-    # ========== LAYER 1: Headline Index ==========
-    headline_rows = ""
-    for item in items:
-        c = item["content"]
-        p = item["processed"]
-        length_str = _format_length(c.word_count, c.duration_seconds)
-        rel = _relative_date(c.published_at)
-        title_clean = _clean_title(c.title)
-        # Truncate long titles in the headline index for scannability
-        if len(title_clean) > 70:
-            title_clean = title_clean[:67] + "..."
-        backlog_tag = ' <span style="color:#dc2626;font-size:11px;font-weight:600;background:#fef2f2;padding:1px 5px;border-radius:3px;">BACKLOG</span>' if p.is_backlog else ""
-
-        # Build topic tag pills
-        tag_pills = ""
-        if p.domains:
-            tag_pills = " ".join(
-                f'<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:#f1f5f9;color:#475569;margin-right:2px;">{tag}</span>'
-                for tag in p.domains[:3]
-            )
-            tag_pills = f"<br>{tag_pills}"
-
-        headline_rows += f"""
-        <tr>
-            <td style="padding:5px 8px 5px 0;vertical-align:top;width:24px;font-size:16px;">{p.tier_emoji}</td>
-            <td style="padding:5px 0;">
-                <span style="color:#0f172a;font-size:14px;font-weight:500;">{title_clean}</span>{backlog_tag}
-                <br>
-                <span style="font-size:12px;color:#94a3b8;">{c.source_name} &middot; {length_str} &middot; {rel}</span>
-                {tag_pills}
-            </td>
-        </tr>
-        """
-
-    # ========== LAYER 2: Detail Cards ==========
+    # ========== Detail Cards ==========
     sections_html = ""
 
     if deep_dives:
@@ -200,12 +193,14 @@ def generate_briefing_html(
 
     if worth_a_look:
         sections_html += _build_tier_section(
-            "🟡 Worth a Look", "Summary captures most of it", worth_a_look, detail_level="medium"
+            "🟡 Worth a Look", "Summary captures most of it", worth_a_look,
+            detail_level="medium", accent_border="#eab308", border_width=3,
         )
 
     if summary_sufficient:
         sections_html += _build_tier_section(
-            "🟢 Summary Sufficient", "You've got the gist", summary_sufficient, detail_level="compact"
+            "🟢 Summary Sufficient", "You've got the gist", summary_sufficient,
+            detail_level="compact", bg_color="#f8fafc",
         )
 
     # Backlog progress bar
@@ -225,12 +220,17 @@ def generate_briefing_html(
         </div>
         """
 
-    # Estimate read time — per-item overhead + word-based reading time
+    # Estimate read time — count words actually rendered per tier
     total_words = 0
     for item in items:
         p = item["processed"]
-        total_words += len(p.core_summary.split())
-        total_words += sum(len(ins.split()) for ins in p.key_insights[:3])
+        if p.tier == "deep_dive":
+            total_words += len(p.core_summary.split())
+            total_words += sum(len(ins.split()) for ins in p.key_insights[:3])
+        elif p.tier == "worth_a_look":
+            total_words += len(p.core_summary.split())
+            total_words += sum(len(ins.split()) for ins in p.key_insights[:2])
+        # summary_sufficient: only so_what is shown
         if p.so_what:
             total_words += len(p.so_what.split())
     overhead_seconds = len(items) * 15  # ~15s per item for scanning title, meta, context-switching
@@ -260,7 +260,7 @@ def generate_briefing_html(
             </p>
             """
 
-    # Editorial intro (between headline index and detail cards)
+    # Editorial intro (inside header card)
     editorial_html = ""
     if editorial_intro:
         editorial_html = f"""
@@ -280,21 +280,16 @@ def generate_briefing_html(
 <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
     <div style="max-width:600px;margin:0 auto;padding:20px;">
 
-        <!-- Header + Headline Index (Layer 1) -->
+        <!-- Header Card -->
         <div style="background:white;border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
             <h1 style="margin:0 0 4px 0;font-size:22px;color:#0f172a;">Daily Briefing</h1>
-            <p style="margin:0 0 12px 0;color:#94a3b8;font-size:13px;">
+            <p style="margin:0 0 8px 0;color:#94a3b8;font-size:13px;">
                 {date_str} &middot; {briefing.total_count} items &middot; {read_time_str} &middot; {badges_html}
             </p>
-
-            <!-- Headline Index -->
-            <table style="width:100%;border-collapse:collapse;">
-                {headline_rows}
-            </table>
             {editorial_html}
         </div>
 
-        <!-- Detail Cards (Layer 2) -->
+        <!-- Detail Cards -->
         {sections_html}
 
         <!-- Footer -->
@@ -313,18 +308,29 @@ def generate_briefing_html(
 
 def _build_tier_section(
     title: str, subtitle: str, items: list[dict], detail_level: str = "full",
-    bg_color: str = "white", accent_border: str = "",
+    bg_color: str = "white", accent_border: str = "", border_width: int = 4,
 ) -> str:
     """
-    Build HTML for a tier section.
+    Build HTML for a tier section with distinct layouts per tier.
 
     detail_level:
-        "full"    — deep_dive: summary + 3 insights + so_what + link
-        "medium"  — worth_a_look: summary + 3 insights + so_what + link
-        "compact" — summary_sufficient: summary + inline take
+        "full"    — Deep Dive: pink bg, red border, 16px title, 3 insights,
+                     blue so_what box, concepts_explained, action link
+        "medium"  — Worth a Look: white bg, yellow left border, 15px title,
+                     2 insights, inline take, action link
+        "compact" — Summary Sufficient: gray bg, no border, 14px muted title,
+                     no summary, no insights, inline take, no link
     """
-    border_style = f"border-left:4px solid {accent_border};" if accent_border else ""
-    section_html = f"""
+    if detail_level == "compact":
+        # Compact section: minimal padding, no border
+        section_html = f"""
+    <div style="background:{bg_color};border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <h2 style="margin:0 0 2px 0;font-size:16px;color:#0f172a;">{title}</h2>
+        <p style="margin:0 0 12px 0;font-size:12px;color:#94a3b8;">{subtitle}</p>
+    """
+    else:
+        border_style = f"border-left:{border_width}px solid {accent_border};" if accent_border else ""
+        section_html = f"""
     <div style="background:{bg_color};border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);{border_style}">
         <h2 style="margin:0 0 2px 0;font-size:16px;color:#0f172a;">{title}</h2>
         <p style="margin:0 0 16px 0;font-size:12px;color:#94a3b8;">{subtitle}</p>
@@ -334,21 +340,28 @@ def _build_tier_section(
         content: ContentItem = item["content"]
         processed: ProcessedContent = item["processed"]
 
-        # Meta line
-        length_str = _format_length(content.word_count, content.duration_seconds)
-        rel_date = _relative_date(content.published_at)
-        meta_parts = [content.source_name, length_str, rel_date]
-        meta = " &middot; ".join(meta_parts)
-        if processed.is_backlog:
-            meta += ' <span style="color:#dc2626;font-size:11px;font-weight:600;background:#fef2f2;padding:1px 5px;border-radius:3px;">BACKLOG</span>'
-
         title_clean = _clean_title(content.title)
 
-        tag_pills_html = _topic_tag_pills(processed.domains)
+        # Backlog / Evergreen badge
+        backlog_badge = ""
+        if processed.is_backlog:
+            backlog_badge = ' <span style="color:#0d9488;font-size:11px;font-weight:600;background:#f0fdfa;padding:1px 5px;border-radius:3px;">Evergreen</span>'
 
         if detail_level == "full":
-            # Deep dive: summary (2-3 sentences) + top 3 insights + so_what + link
+            # ── Deep Dive ──────────────────────────────────────────────
+            length_str = _format_length(content.word_count, content.duration_seconds)
+            rel_date = _relative_date(content.published_at)
+            ct_label = _content_type_label(processed.content_category)
+
+            meta_parts = [content.source_name]
+            if ct_label:
+                meta_parts.append(ct_label)
+            meta_parts.extend([length_str, rel_date])
+            meta = " &middot; ".join(meta_parts)
+            meta += backlog_badge
+
             summary_text = _truncate_sentences(processed.core_summary, 3)
+            tag_pills_html = _topic_tag_pills(processed.domains)
 
             insights_html = ""
             if processed.key_insights:
@@ -359,10 +372,11 @@ def _build_tier_section(
                 insights_html = f'<ul style="margin:8px 0 0 0;padding-left:18px;">{items_html}</ul>'
 
             so_what_html = _so_what_box(processed.so_what)
+            concepts_html = _concepts_html(processed.concepts_explained)
 
             section_html += f"""
             <div id="item-{processed.content_id}" style="padding:12px 0;border-bottom:1px solid #f1f5f9;">
-                <h3 style="margin:0 0 4px 0;font-size:15px;">
+                <h3 style="margin:0 0 4px 0;font-size:16px;">
                     <a href="{content.url}" style="color:#0f172a;text-decoration:none;">{title_clean}</a>
                 </h3>
                 <p style="margin:0 0 4px 0;font-size:12px;color:#94a3b8;">{meta}</p>
@@ -370,6 +384,7 @@ def _build_tier_section(
                 <p style="margin:6px 0 0 0;font-size:13px;color:#334155;line-height:1.5;">{summary_text}</p>
                 {insights_html}
                 {so_what_html}
+                {concepts_html}
                 <p style="margin:8px 0 0 0;">
                     <a href="{content.url}" style="color:#3b82f6;font-size:13px;text-decoration:none;font-weight:500;">
                         {_action_link(content)} &rarr;
@@ -379,18 +394,30 @@ def _build_tier_section(
             """
 
         elif detail_level == "medium":
-            # Worth a look: summary + top 3 insights + so_what + link
+            # ── Worth a Look ───────────────────────────────────────────
+            length_str = _format_length(content.word_count, content.duration_seconds)
+            rel_date = _relative_date(content.published_at)
+            ct_label = _content_type_label(processed.content_category)
+
+            meta_parts = [content.source_name]
+            if ct_label:
+                meta_parts.append(ct_label)
+            meta_parts.extend([length_str, rel_date])
+            meta = " &middot; ".join(meta_parts)
+            meta += backlog_badge
+
             summary_text = _truncate_sentences(processed.core_summary, 2)
+            tag_pills_html = _topic_tag_pills(processed.domains)
 
             insights_html = ""
             if processed.key_insights:
                 items_html = "".join(
                     f"<li style='margin-bottom:2px;color:#334155;font-size:13px;'>{ins}</li>"
-                    for ins in processed.key_insights[:3]
+                    for ins in processed.key_insights[:2]
                 )
                 insights_html = f'<ul style="margin:6px 0 0 0;padding-left:18px;">{items_html}</ul>'
 
-            so_what_html = _so_what_box(processed.so_what)
+            so_what_html = _so_what_inline(processed.so_what)
 
             section_html += f"""
             <div id="item-{processed.content_id}" style="padding:10px 0;border-bottom:1px solid #f1f5f9;">
@@ -411,18 +438,17 @@ def _build_tier_section(
             """
 
         else:
-            # Summary sufficient: summary + inline take
-            summary_text = _truncate_sentences(processed.core_summary, 2)
+            # ── Summary Sufficient ─────────────────────────────────────
+            rel_date = _relative_date(content.published_at)
+            meta = f"{content.source_name} &middot; {rel_date}"
+            meta += backlog_badge
+
             so_what_html = _so_what_inline(processed.so_what)
 
             section_html += f"""
-            <div id="item-{processed.content_id}" style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
-                <h3 style="margin:0 0 3px 0;font-size:14px;">
-                    <a href="{content.url}" style="color:#0f172a;text-decoration:none;">{title_clean}</a>
-                </h3>
+            <div id="item-{processed.content_id}" style="padding:8px 0;border-bottom:1px solid #e2e8f0;">
+                <p style="margin:0 0 3px 0;font-size:14px;font-weight:500;color:#334155;">{title_clean}</p>
                 <p style="margin:0 0 4px 0;font-size:12px;color:#94a3b8;">{meta}</p>
-                {tag_pills_html}
-                <p style="margin:6px 0 0 0;font-size:13px;color:#64748b;line-height:1.4;">{summary_text}</p>
                 {so_what_html}
             </div>
             """
